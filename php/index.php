@@ -1,20 +1,23 @@
+<?php
+session_start();
+
+if (isset($_SESSION['email'])) {
+    header("Location: accueil.php");
+    exit();
+}
+?>
+
 <!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Test Local</title>
+    <title>Accueil</title>
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <h1>Ceci est une page de test en local avec XAMPP</h1>
-    <p>Voici quelques mots simples pour tester le fonctionnement de votre serveur XAMPP :</p>
-    <ul>
-        <li>PHP</li>
-        <li>XAMPP</li>
-        <li>Localhost</li>
-        <li>Apache</li>
-        <li>MySQL</li>
-    </ul>
-    <p>Bienvenue sur votre page de test locale !</p>
+    <h2>Bienvenue</h2>
+    <a href="inscription.php">Inscription</a>
+    <a href="connexion.php">Connexion</a>
 </body>
 </html>
