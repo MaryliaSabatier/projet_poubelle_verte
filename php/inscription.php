@@ -42,6 +42,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <h2>Inscription</h2>
     <?php if(isset($erreur)) { echo "<p>$erreur</p>"; } ?>
     <form action="inscription.php" method="post">
+    <link rel="stylesheet" href="../css/inscription.css">
         <div>
             <label for="nom">Nom :</label>
             <input type="text" id="nom" name="nom" required>
