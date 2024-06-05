@@ -12,5 +12,5 @@ Description brève du projet.
 
 ## Configuration
 
-- Expliquez toute configuration supplémentaire nécessaire pour faire fonctionner votre projet.
-- Indiquez les dépendances externes si nécessaire.
+- Besoin d'avoir PHP en variable d'environnement
+- 
