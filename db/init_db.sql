@@ -115,3 +115,7 @@ CREATE TABLE etat_arrets (
     FOREIGN KEY (arret_id) REFERENCES arrets(id),
     FOREIGN KEY (tournee_id) REFERENCES tournees(id)
 );
+
+-- Creation admin
+INSERT INTO utilisateurs (nom, prenom, email, mot_de_passe, role_id)
+VALUES ('AdminPoubelleVerte', 'Admin', 'admin@poubelleverte.com', PASSWORD('123456789'), 1); 
