@@ -2,15 +2,15 @@
 session_start();
 
 // Vérification de la connexion et du rôle d'administrateur
-if (!isset($_SESSION['user_id']) || $_SESSION['role_id'] != 1) { // 1 = ID du rôle administrateur
+if (!isset($_SESSION['user_id']) || $_SESSION['role_id'] != 1) {
     header('Location: login.php');
     exit();
 }
 
 // Connexion à la base de données (à adapter avec vos informations)
 $servername = "localhost";
-$username_db = "root";  // Ou votre nom d'utilisateur
-$password_db = "";    // Ou votre mot de passe
+$username_db = "root";
+$password_db = "";
 $dbname = "poubelle_verte";
 
 $conn = new mysqli($servername, $username_db, $password_db, $dbname);
@@ -23,24 +23,22 @@ $sqlRoles = "SELECT * FROM roles";
 $resultRoles = $conn->query($sqlRoles);
 
 // Initialisation des variables pour le formulaire
-$nom = $email = $password = $roleId = $error = "";
+$nom = $prenom = $email = $password = $roleId = $dateEmbauche = $disponibilite = $error = "";
 
 // Traitement du formulaire d'ajout d'utilisateur
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    // Récupération et validation des données du formulaire
+    // Récupération et validation des données du formulaire (sans hachage)
     $nom = htmlspecialchars($_POST['nom']);
+    $prenom = htmlspecialchars($_POST['prenom']);
     $email = filter_var($_POST['email'], FILTER_SANITIZE_EMAIL);
-    $password = $_POST['password'];
+    $password = $_POST['password']; // Mot de passe en clair (non recommandé)
     $roleId = $_POST['role_id'];
+    $dateEmbauche = $_POST['date_embauche']; // Optionnel, seulement pour les cyclistes
+    $disponibilite = $_POST['disponibilite']; // Optionnel, seulement pour les cyclistes
 
-    // Validation de l'email
+    // Validations (email, unicité de l'email, champs obligatoires)
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $error = "L'adresse email n'est pas valide.";
-    }
-
-    // Validation du mot de passe (au moins 8 caractères)
-    if (strlen($password) < 8) {
-        $error .= "<br>Le mot de passe doit contenir au moins 8 caractères.";
     }
 
     // Vérification de l'unicité de l'email
@@ -52,17 +50,27 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $error .= "<br>Cette adresse email est déjà utilisée.";
     }
 
+    // Vérification des champs obligatoires
+    if (empty($nom) || empty($prenom) || empty($email) || empty($password) || empty($roleId)) {
+        $error .= "<br>Tous les champs sont obligatoires.";
+    }
+
+    // Vérifications spécifiques au rôle de cycliste
+    if ($roleId == 3) { // 3 = ID du rôle cycliste
+        if (empty($dateEmbauche)) {
+            $error .= "<br>La date d'embauche est obligatoire pour les cyclistes.";
+        }
+        // Vous pouvez ajouter d'autres validations pour la disponibilité si nécessaire
+    }
+
     // Si aucune erreur, ajout de l'utilisateur
     if (empty($error)) {
-        // Hachage du mot de passe
-        $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
-
-        // Préparation de la requête d'insertion
-        $stmt = $conn->prepare("INSERT INTO utilisateurs (nom, email, mot_de_passe, role_id) VALUES (?, ?, ?, ?)");
-        $stmt->bind_param("sssi", $nom, $email, $hashedPassword, $roleId);
+        // Préparation de la requête d'insertion (sans hachage)
+        $stmt = $conn->prepare("INSERT INTO utilisateurs (nom, prenom, email, mot_de_passe, role_id, date_embauche, disponibilite) VALUES (?, ?, ?, ?, ?, ?, ?)");
+        $stmt->bind_param("ssssiss", $nom, $prenom, $email, $password, $roleId, $dateEmbauche, $disponibilite);
 
         if ($stmt->execute()) {
-            header('Location: admin.php'); // Redirection vers la page admin après succès
+            header('Location: gestion_utilisateurs.php'); // Redirection après succès
             exit();
         } else {
             $error = "Erreur lors de l'ajout de l'utilisateur : " . $stmt->error;
@@ -89,6 +97,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <input type="text" class="form-control" id="nom" name="nom" value="<?php echo $nom; ?>" required>
             </div>
             <div class="mb-3">
+                <label for="prenom" class="form-label">Prénom</label>
+                <input type="text" class="form-control" id="prenom" name="prenom" value="<?php echo $prenom; ?>" required>
+            </div>
+            <div class="mb-3">
                 <label for="email" class="form-label">Email</label>
                 <input type="email" class="form-control" id="email" name="email" value="<?php echo $email; ?>" required>
             </div>
@@ -106,8 +118,33 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     <?php } ?>
                 </select>
             </div>
+            <div id="cyclisteFields" style="display: none;"> 
+                <div class="mb-3">
+                    <label for="date_embauche" class="form-label">Date d'embauche</label>
+                    <input type="date" class="form-control" id="date_embauche" name="date_embauche" value="<?php echo $dateEmbauche; ?>">
+                </div>
+                <div class="mb-3">
+                    <label for="disponibilite" class="form-label">Disponibilité</label>
+                    <textarea class="form-control" id="disponibilite" name="disponibilite"><?php echo $disponibilite; ?></textarea>
+                </div>
+            </div>
+
             <button type="submit" class="btn btn-primary">Ajouter</button>
         </form>
     </div>
+
+    <script>
+        // Afficher/masquer les champs spécifiques aux cyclistes en fonction du rôle sélectionné
+        const roleSelect = document.getElementById('role');
+        const cyclisteFields = document.getElementById('cyclisteFields');
+
+        roleSelect.addEventListener('change', function() {
+            if (this.value == 3) { // 3 = ID du rôle cycliste
+                cyclisteFields.style.display = 'block';
+            } else {
+                cyclisteFields.style.display = 'none';
+            }
+        });
+    </script>
 </body>
 </html>
