@@ -1,6 +1,7 @@
 <?php
 session_start();
 
+
 // Vérification si l'utilisateur est déjà connecté
 if (isset($_SESSION['user_id'])) {
     header('Location: admin.php'); // Redirection vers la page admin si connecté
@@ -24,24 +25,30 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         die("La connexion a échoué : " . $conn->connect_error);
     }
 
-    //Préparation de la requête pour éviter les injections SQL
-    $stmt = $conn->prepare("SELECT id, role_id, mot_de_passe FROM utilisateurs WHERE email = ?");
+    // Préparation de la requête pour éviter les injections SQL
+    $stmt = $conn->prepare("SELECT id, role_id, mot_de_passe, prenom FROM utilisateurs WHERE email = ?");
     $stmt->bind_param("s", $email);
     $stmt->execute();
     $result = $stmt->get_result();
 
     if ($result->num_rows == 1) {
         $row = $result->fetch_assoc();
-        if (password_verify($password, $row['mot_de_passe'])) {
-            $_SESSION['user_id'] = $row['id'];
-            $_SESSION['role_id'] = $row['role_id'];
-            header('Location: admin.php'); // Redirection vers la page admin
-            exit();
+        if ($password == $row['mot_de_passe']) {
+            // Vérification du rôle (1 pour administrateur)
+            if ($row['role_id'] == 1) {
+                $_SESSION['user_id'] = $row['id'];
+                $_SESSION['role_id'] = $row['role_id'];
+                $_SESSION['prenom'] = $row['prenom'];
+                header('Location: admin.php'); // Redirection vers la page admin
+                exit();
+            } else {
+                $error = "Vous n'avez pas les droits d'accès.";
+            }
         } else {
-            $error = "Email ou mot de passe incorrect.";
+            $error = "Email1.";
         }
     } else {
-        $error = "Email ou mot de passe incorrect.";
+        $error = "Email2.";
     }
 
     $stmt->close();
@@ -52,14 +59,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Connexion Administrateur</title>
+    <title>Page de connexion</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
 </head>
 <body>
     <div class="container mt-5">
         <div class="row justify-content-center">
             <div class="col-md-6">
-                <h2 class="text-center mb-4">Connexion Administrateur</h2>
+                <h2 class="text-center mb-4">Page de connexion</h2>
                 <?php if (isset($error)) { echo "<div class='alert alert-danger'>$error</div>"; } ?>
                 <form method="POST">
                     <div class="mb-3">
