@@ -1,10 +1,13 @@
 <?php
 session_start();
 
-
 // Vérification si l'utilisateur est déjà connecté
 if (isset($_SESSION['user_id'])) {
-    header('Location: admin.php'); // Redirection vers la page admin si connecté
+    if ($_SESSION['role_id'] == 1) {
+        header('Location: admin/admin.php');
+    } elseif ($_SESSION['role_id'] == 2) {
+        header('Location: rh/rh.php');
+    }
     exit();
 }
 
@@ -34,21 +37,27 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if ($result->num_rows == 1) {
         $row = $result->fetch_assoc();
         if ($password == $row['mot_de_passe']) {
-            // Vérification du rôle (1 pour administrateur)
+            // Vérification du rôle (1 pour admin, 2 pour RH)
             if ($row['role_id'] == 1) {
                 $_SESSION['user_id'] = $row['id'];
                 $_SESSION['role_id'] = $row['role_id'];
                 $_SESSION['prenom'] = $row['prenom'];
-                header('Location: admin.php'); // Redirection vers la page admin
+                header('Location: admin/admin.php'); // Redirection vers la page admin
+                exit();
+            } elseif ($row['role_id'] == 2) {
+                $_SESSION['user_id'] = $row['id'];
+                $_SESSION['role_id'] = $row['role_id'];
+                $_SESSION['prenom'] = $row['prenom'];
+                header('Location: rh/rh.php'); // Redirection vers la page RH
                 exit();
             } else {
                 $error = "Vous n'avez pas les droits d'accès.";
             }
         } else {
-            $error = "Email1.";
+            $error = "Email ou mot de passe incorrect.";
         }
     } else {
-        $error = "Email2.";
+        $error = "Email ou mot de passe incorrect.";
     }
 
     $stmt->close();

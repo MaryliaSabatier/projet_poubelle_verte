@@ -1,9 +1,9 @@
 <?php
 session_start();
 
-// Vérification de la connexion et du rôle d'administrateur
-if (!isset($_SESSION['user_id']) || $_SESSION['role_id'] != 1) {
-    header('Location: login.php');
+// Vérification de la connexion et du rôle RH
+if (!isset($_SESSION['user_id']) || $_SESSION['role_id'] != 2) {  // 2 = ID du rôle RH
+    header('Location: ../login.php');
     exit();
 }
 
@@ -34,8 +34,8 @@ if (isset($_GET['id'])) {
     die("ID d'utilisateur non spécifié.");
 }
 
-// Récupération des rôles pour le formulaire
-$sqlRoles = "SELECT * FROM roles";
+// Récupération des rôles autorisés pour les RH (cycliste et gestionnaire de réseau)
+$sqlRoles = "SELECT * FROM roles WHERE id IN (3, 4)"; // 3 = cycliste, 4 = gestionnaire de réseau
 $resultRoles = $conn->query($sqlRoles);
 
 // Initialisation des variables pour le formulaire (avec les valeurs actuelles de l'utilisateur)
@@ -46,10 +46,11 @@ $roleId = $utilisateur['role_id'];
 $dateEmbauche = $utilisateur['date_embauche'];
 $disponibilite = $utilisateur['disponibilite'];
 $error = "";
+$success = ""; // Variable pour afficher un message de succès
 
 // Traitement du formulaire de modification
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    // Récupération et validation des données du formulaire (sans hachage pour le moment)
+    // Récupération et validation des données du formulaire
     $nom = htmlspecialchars($_POST['nom']);
     $prenom = htmlspecialchars($_POST['prenom']);
     $email = filter_var($_POST['email'], FILTER_SANITIZE_EMAIL);
@@ -89,13 +90,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     // Si aucune erreur, mise à jour de l'utilisateur
     if (empty($error)) {
-        // Préparation de la requête de mise à jour (sans modification du mot de passe pour le moment)
-        $stmt = $conn->prepare("UPDATE utilisateurs SET nom=?, prenom=?, email=?, role_id=?, date_embauche=?, disponibilite=? WHERE id=?");
-        $stmt->bind_param("sssissi", $nom, $prenom, $email, $roleId, $dateEmbauche, $disponibilite, $userId);
+        // Hachage du mot de passe si modifié (à implémenter pour la sécurité)
+        if (!empty($password)) {
+            $hashedPassword = password_hash($password, PASSWORD_DEFAULT); 
+        } else {
+            // Si le mot de passe n'est pas modifié, on récupère le hash actuel
+            $hashedPassword = $utilisateur['mot_de_passe'];
+        }
+
+        // Préparation de la requête de mise à jour
+        $stmt = $conn->prepare("UPDATE utilisateurs SET nom=?, prenom=?, email=?, mot_de_passe=?, role_id=?, date_embauche=?, disponibilite=? WHERE id=?");
+        $stmt->bind_param("sssisssi", $nom, $prenom, $email, $hashedPassword, $roleId, $dateEmbauche, $disponibilite, $userId);
 
         if ($stmt->execute()) {
-            header('Location: gestion_utilisateurs.php'); // Redirection après succès
-            exit();
+            $success = "Utilisateur modifié avec succès !"; // Message de succès
         } else {
             $error = "Erreur lors de la modification de l'utilisateur : " . $stmt->error;
         }
@@ -106,14 +114,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Modifier un utilisateur</title>
+    <title>Modifier un utilisateur (RH)</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
 </head>
 <body>
     <div class="container mt-5">
-        <h2>Modifier un utilisateur</h2>
+        <h2>Modifier un utilisateur (RH)</h2>
 
         <?php if (!empty($error)) { echo "<div class='alert alert-danger'>$error</div>"; } ?>
+        <?php if (!empty($success)) { echo "<div class='alert alert-success'>$success</div>"; } ?>
 
         <form method="POST">
             <div class="mb-3">
@@ -153,8 +162,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 </div>
             </div>
 
-            <button type="submit" class="btn btn-primary">Modifier</button>
+            <button type="submit" class btn btn-primary>Modifier</button>
         </form>
+
+        <a href="gestion_utilisateurs_rh.php" class="btn btn-secondary mt-3">Retour à la liste des utilisateurs</a> 
     </div>
 
     <script>

@@ -3,7 +3,7 @@ session_start();
 
 // Vérification de la connexion et du rôle d'administrateur
 if (!isset($_SESSION['user_id']) || $_SESSION['role_id'] != 1) {
-    header('Location: login.php');
+    header('Location: ../login.php');
     exit();
 }
 
