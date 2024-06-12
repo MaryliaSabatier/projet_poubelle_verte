@@ -56,6 +56,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $_SESSION['prenom'] = $row['prenom'];
                 header('Location: gestionnaire_reseau/gestionnaire_reseau.php'); // Redirection vers la page du gestionnaire de réseau
                 exit();
+            } elseif ($row['role_id'] == 3) { // Cycliste
+                $_SESSION['user_id'] = $row['id'];
+                $_SESSION['role_id'] = $row['role_id'];
+                $_SESSION['prenom'] = $row['prenom'];
+                header('Location: cycliste/cycliste.php'); // Redirection vers la page cycliste
+                exit();
             } else {
                 $error = "Vous n'avez pas les droits d'accès.";
             }
