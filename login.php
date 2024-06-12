@@ -50,6 +50,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $_SESSION['prenom'] = $row['prenom'];
                 header('Location: rh/rh.php'); // Redirection vers la page RH
                 exit();
+            } elseif ($row['role_id'] == 4) { // Gestionnaire de réseau
+                $_SESSION['user_id'] = $row['id'];
+                $_SESSION['role_id'] = $row['role_id'];
+                $_SESSION['prenom'] = $row['prenom'];
+                header('Location: gestionnaire_reseau/gestionnaire_reseau.php'); // Redirection vers la page du gestionnaire de réseau
+                exit();
             } else {
                 $error = "Vous n'avez pas les droits d'accès.";
             }
@@ -75,11 +81,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <div class="container mt-5">
         <div class="row justify-content-center">
             <div class="col-md-6">
-                <h2 class="text-center mb-4">Connexion </h2>
+                <h2 class="text-center mb-4">Page de connexion </h2>
                 <?php if (isset($error)) { echo "<div class='alert alert-danger'>$error</div>"; } ?>
                 <form method="POST">
                     <div class="mb-3">
-                        <label for="email" class="form-label">ergerngir</label>
+                        <label for="email" class="form-label">Email</label>
                         <input type="email" class="form-control" id="email" name="email" required>
                     </div>
                     <div class="mb-3">

@@ -55,7 +55,7 @@ if ($conn->connect_error) {
 <body>
     <div class="container mt-5">
         <h1 class="text-center mb-4">Interface Administrateur</h1>
-        <a href="logout.php" class="btn btn-danger logout-btn">Déconnexion</a>
+        <a href="../logout.php" class="btn btn-danger logout-btn">Déconnexion</a>
         <div class="row">
             <div class="col-md-3">
                 <ul class="nav flex-column">
