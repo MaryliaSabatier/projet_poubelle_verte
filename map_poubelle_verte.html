@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Carte des arrêts de collecte - Poubelle Verte</title>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<style>
+	/* Styles pour la carte */
+	html, body { margin: 0; padding: 0; } /* Utiliser tout l'espace disponible */
+	svg { width: 100%; height: 100vh; } /* SVG occupe tout l'écran */
+	.link { stroke: #999; stroke-opacity: 0.6; } 
+	.node circle { stroke: #fff; stroke-width: 1.5px; } 
+	.stop { fill: orange; }
+	.depot { fill: green; }
+	.label { font: 10px sans-serif; pointer-events: none; }
+	.velo { fill: red; }
+</style>
+</head>
+<body>
+<div id="graph-container"></div>
+
+<script>
+// Données des rues et arrêts
+const ruesEtArrets = {
+	"Rue Croix-Baragnon": ["La Défense", "Esplanade de la Défense", "Pont de Neuilly", "Les Sablons", "Porte Maillot", "Argentine", "Charles de Gaulle-Étoile", "George V", "Franklin D. Roosevelt", "Champs-Élysées-Clemenceau", "Concorde", "Tuileries", "Palais Royal-Musée du Louvre", "Louvre-Rivoli", "Châtelet", "Hôtel de Ville", "Saint-Paul", "Bastille", "Gare de Lyon", "Reuilly-Diderot", "Nation", "Porte de Vincennes", "Saint-Mandé", "Bérault", "Château de Vincennes"],
+	"Rue des Arts": ["Porte Dauphine", "Victor Hugo", "Charles de Gaulle-Étoile", "Ternes", "Courcelles", "Monceau", "Villiers", "Rome", "Place de Clichy", "Blanche", "Pigalle", "Anvers", "Barbès-Rochechouart", "La Chapelle", "Stalingrad", "Jaurès", "Colonel Fabien", "Belleville", "Couronnes", "Ménilmontant", "Père Lachaise", "Philippe Auguste", "Alexandre Dumas", "Avron", "Nation"],
+	"Rue Pargaminières": ["Pont de Levallois-Bécon", "Anatole France", "Louise Michel", "Porte de Champerret", "Pereire", "Wagram", "Malesherbes", "Villiers", "Europe", "Saint-Lazare", "Havre-Caumartin", "Opéra", "Quatre-Septembre", "Bourse", "Sentier", "Réaumur-Sébastopol", "Arts et Métiers", "Temple", "République", "Parmentier", "Rue Saint-Maur", "Père Lachaise", "Gambetta", "Porte de Bagnolet", "Gallieni"]
+};
+
+// Création des nœuds et des liens
+const nodes = []; // Contient uniquement les arrêts
+const links = []; // Contient les liens entre les arrêts contigus sur une même rue
+
+for (const rue in ruesEtArrets) {
+    const arrets = ruesEtArrets[rue];
+    for (let i = 0; i < arrets.length; i++) {
+        nodes.push({ id: arrets[i], type: "stop" }); // Ajouter l'arrêt comme nœud
+        if (i > 0) {
+            links.push({ source: arrets[i - 1], target: arrets[i] }); // Relier les arrêts consécutifs
+        }
+    }
+}
+
+// Trouver les intersections (arrêts partagés entre plusieurs rues)
+const intersections = {};
+for (const rue in ruesEtArrets) {
+    for (const arret of ruesEtArrets[rue]) {
+        if (Object.values(ruesEtArrets).filter(arr => arr.includes(arret)).length > 1) {
+            intersections[arret] = true;
+        }
+    }
+}
+
+// Mettre à jour le type des nœuds d'intersection
+nodes.forEach(node => {
+    if (intersections[node.id]) {
+        node.type = "intersection";
+    }
+});
+
+// Dimensions du SVG (pleine page)
+const svg = d3.select("#graph-container").append("svg");
+const width = 1500; // Largeur du SVG
+const height = 800; // Hauteur du SVG
+
+// Zoom et translation
+const zoom = d3.zoom()
+    .scaleExtent([0.5, 5]) // Zoom minimum et maximum
+    .on("zoom", (event) => {
+        g.attr("transform", event.transform);
+    });
+
+svg.call(zoom);
+
+// Groupe pour contenir les éléments du graphe avec zoom
+const g = svg.append("g")
+    .attr("class", "everything");
+
+// Simulation de force pour positionner les nœuds
+const simulation = d3.forceSimulation(nodes)
+    .force("link", d3.forceLink(links).id(d => d.id).distance(80)) // Distance entre les arrêts contigus augmentée
+    .force("charge", d3.forceManyBody().strength(-50)) // Répulsion plus faible
+    .force("center", d3.forceCenter(width / 2, height / 2)) // Centrer le graphe
+    .on("tick", ticked); // Mettre à jour la position des nœuds et des liens à chaque tick de la simulation
+
+// Créer les liens (lignes) entre les nœuds
+const link = g.append("g")
+    .attr("class", "links")
+    .selectAll("line")
+    .data(links)
+    .join("line")
+    .attr("class", "link");
+
+// Créer les nœuds (cercles)
+const node = g.append("g")
+    .attr("class", "nodes")
+    .selectAll("g")
+    .data(nodes)
+    .join("g");
+
+node.append("circle")
+    .attr("r", d => d.type === "intersection" ? 7 : 5) // Rayon légèrement plus grand pour les intersections
+    .attr("class", d => d.type);
+
+// Ajouter les étiquettes de texte aux nœuds
+node.append("text")
+    .attr("class", "label")
+    .text(d => d.id)
+    .attr("x", 6)
+    .attr("y", 3);
+
+// Fonction pour mettre à jour les positions
+function ticked() {
+    link
+        .attr("x1", d => d.source.x)
+        .attr("y1", d => d.source.y)
+        .attr("x2", d => d.target.x)
+        .attr("y2", d => d.target.y);
+
+    node
+        .attr("transform", d => `translate(${d.x},${d.y})`);
+};
+</script>
+
+</body>
+</html>
