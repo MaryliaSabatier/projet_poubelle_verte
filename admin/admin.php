@@ -66,13 +66,13 @@ if ($conn->connect_error) {
                         <a class="nav-link" href="gestion_utilisateurs.php">Gestion des utilisateurs</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="gestion_velos.php">Gestion des vélos</a>
+                        <a class="nav-link" href="../gestionnaire_reseau/gestion_velos.php">Gestion des vélos</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="gestion_tournees.php">Gestion des tournées</a>
+                        <a class="nav-link" href="../gestionnaire_reseau/gestion_tournees.php">Gestion des tournées</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="gestion_incidents.php">Gestion des incidents</a>
+                        <a class="nav-link" href="../gestionnaire_reseau/gestion_incidents.php">Gestion des incidents</a>
                     </li>
                 </ul>
             </div>
