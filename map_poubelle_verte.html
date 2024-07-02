@@ -4,16 +4,16 @@
 <title>Carte des arr\u00eats de collecte - Poubelle Verte</title>
 <script src="https://d3js.org/d3.v7.min.js"></script>
 <style>
-	/* Styles pour la carte */
-	html, body { margin: 0; padding: 0; } /* Utiliser tout l'espace disponible */
-	svg { width: 100%; height: 100vh; } /* SVG occupe tout l'\u00e9cran */
-	.link { stroke: #999; stroke-opacity: 0.6; stroke-width: 2px; } /* Style des rues (lignes plus \u00e9paisses) */
-	.node circle { stroke-width: 1.5px; }
-	.stop { fill: orange; } /* Orange plus fonc\u00e9 pour les arr\u00eats */
-	.depot { fill: green; } /* Vert plus fonc\u00e9 pour les d\u00e9p\u00f4ts */
-	.intersection { fill: purple; } /* Violet pour les intersections */
-	.label { font: 12px sans-serif; pointer-events: none; } /* \u00c9tiquettes plus grandes */
-	.velo { fill: red; }
+  /* Styles pour la carte */
+  html, body { margin: 0; padding: 0; } /* Utiliser tout l'espace disponible */
+  svg { width: 100%; height: 100vh; } /* SVG occupe tout l'\u00e9cran */
+  .link { stroke: #999; stroke-opacity: 0.6; stroke-width: 2px; } /* Style des rues (lignes plus \u00e9paisses) */
+  .node circle { stroke-width: 1.5px; }
+  .stop { fill: orange; } /* Orange plus fonc\u00e9 pour les arr\u00eats */
+  .depot { fill: green; } /* Vert plus fonc\u00e9 pour les d\u00e9p\u00f4ts */
+  .intersection { fill: purple; } /* Violet pour les intersections */
+  .label { font: 12px sans-serif; pointer-events: none; } /* \u00c9tiquettes plus grandes */
+  .velo { fill: red; }
 </style>
 </head>
 <body>
@@ -106,7 +106,7 @@ const ruesEtArrets = {
           trafficLights: [2, 1, 0, 3, 1, 2, 1, 0, 3, 1, 2, 1, 0, 3, 1, 2, 1, 0, 3, 1, 2, 1, 0, 3, 1]
       },
       "Rue d'Espinasse": {
-          stops: ["Saint-Lazare", "Madeleine", "Pyramides", "Chatelet", "Gare de Lyon", "Bercy", "Cour Saint-Emilion", "Bibliotheque François Mitterrand", "Olympiades"],
+          stops: ["Saint-Lazare", "Madeleine", "Pyramides", "Chatelet", "Gare de Lyon", "Bercy", "Cour Saint-Emilion", "Bibliotheque Francois Mitterrand", "Olympiades"],
           distances: [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5],
           trafficLights: [2, 1, 0, 3, 1, 2, 1, 0]
       },
@@ -121,31 +121,31 @@ const ruesEtArrets = {
           trafficLights: [2, 1, 0, 3, 1, 2, 1, 0, 3, 1, 2, 1, 0, 3]
       },
       "Rue Bédelières": {
-          stops: ["Pont du Garigliano", "Balard", "Desnouettes", "Porte de Versailles", "Georges Brassens", "Brancion", "Porte de Vanves", "Didot", "Jean Moulin", "Porte d'Orléans", "Montsouris", "Cité universitaire", "Stade Charléty", "Poterne des Peupliers", "Porte d'Italie", "Porte de Choisy", "Porte d'Ivry", "Bibliothèque François Mitterrand", "Porte de Charenton", "Porte Dorée", "Montempoivre", "Porte de Vincennes"],
+          stops: ["Pont du Garigliano", "Balard", "Desnouettes", "Porte de Versailles", "Georges Brassens", "Brancion", "Porte de Vanves", "Didot", "Jean Moulin", "Porte d'Orléans", "Montsouris", "Cité universitaire", "Stade Charléty", "Poterne des Peupliers", "Porte d'Italie", "Porte de Choisy", "Porte d'Ivry", "Bibliotheque Francois Mitterrand", "Porte de Charenton", "Porte Dorée", "Montempoivre", "Porte de Vincennes"],
           distances: [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5],
           trafficLights: [2, 1, 0, 3, 1, 2, 1, 0, 3, 1, 2, 1, 0, 3, 1, 2, 1, 0, 3, 1, 2]
       }, 
       "Rue Merlane": {
-          stops: ["La D\u00e9fense", "Charles de Gaulle-\u00c9toile", "Auber", "Ch\u00e2telet-Les Halles", "Gare de Lyon", "Nation"],
+          stops: ["La Défense", "Charles de Gaulle-Étoile", "Auber", "Châtelet-Les Halles", "Gare de Lyon", "Nation"],
           distances: [0.5, 0.5, 0.5, 0.5, 0.5],
           trafficLights: [2, 1, 0, 3, 1] 
       },
       "Rue V\u00e9lane": {
-          stops: ["Gare du Nord", "Ch\u00e2telet-Les Halles", "Saint-Michel-Notre-Dame", "Luxembourg", "Port-Royal", "Denfert-Rochereau", "Cit\u00e9 Universitaire"],
+          stops: ["Gare du Nord", "Châtelet-Les Halles", "Saint-Michel-Notre-Dame", "Luxembourg", "Port-Royal", "Denfert-Rochereau", "Cité Universitaire"],
           distances: [0.5, 0.5, 0.5, 0.5, 0.5, 0.5],
           trafficLights: [2, 1, 0, 3, 1, 2] 
       },
       "Rue Etroite": {
-          stops: ["Porte de Clichy", "Pereire", "Porte Maillot", "Avenue Foch", "Avenue Henri Martin", "La Muette", "Avenue du Pr\u00e9sident Kennedy", "Champ de Mars-Tour Eiffel", "Pont de l'Alma", "Invalides", "Mus\u00e9e d'Orsay", "Saint-Michel-Notre-Dame", "Gare d'Austerlitz", "Biblioth\u00e8que Fran\u00e7ois Mitterrand"],
+          stops: ["Porte de Clichy", "Pereire", "Porte Maillot", "Avenue Foch", "Avenue Henri Martin", "La Muette", "Avenue du Président Kennedy", "Champ de Mars-Tour Eiffel", "Pont de l'Alma", "Invalides", "Musée d'Orsay", "Saint-Michel-Notre-Dame", "Gare d'Austerlitz", "Bibliotheque Francois Mitterrand"],
           distances: [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5],
           trafficLights: [2, 1, 0, 3, 1, 2, 1, 0, 3, 1, 2, 1, 0, 3]
       },
       "Rue des Tourneurs": {
-          stops: ["Gare du Nord", "Ch\u00e2telet-Les Halles", "Gare de Lyon"],
+          stops: ["Gare du Nord", "Châtelet-Les Halles", "Gare de Lyon"],
           distances: [0.5, 0.5],
           trafficLights: [2, 1] 
       },
-      "Rue de la Trinit\u00e9": {
+      "Rue de la Trinité": {
           stops: ["Saint-Lazare", "Gare du Nord"],
           distances: [0.5],
           trafficLights: [1]
@@ -168,7 +168,7 @@ const width = 1500; // Largeur du SVG
 const height = 800; // Hauteur du SVG
 const streetSpacing = 200; // Espacement vertical entre les rues
 
-// Générer les coordonnées des arrêts le long des rues, en fusionnant les intersections
+// Générer les coordonnées des arrêts le long des rues
 let y = padding; // Coordonnée y initiale (avec une marge en haut)
 for (const rue in ruesEtArrets) {
     let x = padding; // Coordonnée x initiale pour chaque rue
@@ -178,13 +178,18 @@ for (const rue in ruesEtArrets) {
     for (let i = 0; i < arrets.length; i++) {
         const arret = arrets[i];
 
-        // Vérifier si l'arrêt existe déjà (intersection)
-        let existingNode = nodes.find(n => n.id === arret);
+        // Vérifier si l'arrêt existe déjà
+        let existingNode = nodeById[arret];
         if (!existingNode) {
             existingNode = { id: arret, type: "stop", x, y };
             nodes.push(existingNode);
+            nodeById[arret] = existingNode; // Ajouter le nœud à l'index
+        } else {
+            // Si l'arrêt existe déjà, c'est une intersection, on le replace au milieu des rues
+            existingNode.x = (existingNode.x + x) / 2;
+            existingNode.y = (existingNode.y + y) / 2;
+            existingNode.type = "intersection";
         }
-        nodeById[arret] = existingNode;
 
         if (i > 0) {
             const distance = ruesEtArrets[rue].distances[i - 1];
