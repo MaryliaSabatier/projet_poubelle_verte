@@ -14,6 +14,34 @@
   .intersection { fill: purple; } /* Violet pour les intersections */
   .label { font: 12px sans-serif; pointer-events: none; } /* \u00c9tiquettes plus grandes */
   .velo { fill: red; }
+  
+  /* Couleurs spécifiques pour chaque rue */
+  .link.Rue-Croix-Baragnon { stroke: #3498db; }  /* Bleu */ 
+  .link.Rue-des-Arts { stroke: #e74c3c; }        /* Rouge */  
+  .link.Rue-Saint-Rome { stroke: #2ecc71; }     /* Vert */ 
+  .link.Rue-Saint-Antoine-du-T { stroke: #f39c12; } /* Orange */ 
+  .link.Rue-de-la-Fonderie { stroke: #9b59b6; }   /* Violet */ 
+  .link.Rue-Peyrolieres { stroke: #34495e; }   /* Gris foncé */ 
+  .link.Rue-Genty-Magre { stroke: #1abc9c; }   /* Turquoise */ 
+  .link.Rue-du-May { stroke: #e67e22; }        /* Orange foncé */ 
+  .link.Rue-des-Filatiers { stroke: #27ae60; } /* Vert foncé */ 
+  .link.Rue-Mage { stroke: #2980b9; }         /* Bleu foncé */ 
+  .link.Rue-d-Espinasse { stroke: #8e44ad; }   /* Violet foncé */ 
+  .link.Rue-des-Tourneurs { stroke: #f1c40f; } /* Jaune */ 
+  .link.Rue-de-la-Trinite { stroke: #c0392b; } /* Rouge foncé */ 
+  .link.Quai-de-la-Daurade { stroke: #2c3e50; } /* Bleu nuit */ 
+  .link.Rue-Bedelieres { stroke: #16a085; }    /* Turquoise foncé */ 
+  .link.Rue-Pargaminieres { stroke: #a01692; }    /* rose foncé */ 
+  .link.Rue-d-Alsace-Lorraine { stroke: #8e44ad; } /* Violet */ 
+  .link.Rue-Peyras { stroke: #2980b9; } /* Bleu foncé */ 
+  .link.Rue-du-Taur { stroke: #f1c40f; } /* Jaune */ 
+  .link.Allee-Jean-Jaures { stroke: #27ae60; } /* Vert */ 
+  .link.Rue-des-Gestes { stroke: #d35400; } /* Orange */ 
+  .link.Rue-Merlane { stroke: #c0392b; } /* Rouge foncé */ 
+  .link.Rue-Velane { stroke: #7f8c8d; } /* Gris */
+  .link.Rue-Etroite { stroke: #2ecc71; } /* Vert clair */ 
+
+
 </style>
 </head>
 <body>
@@ -225,13 +253,20 @@ svg.call(zoom);
 const g = svg.append("g")
     .attr("class", "everything");
 
-// Creer les liens (lignes) entre les nœuds
+
+// Créer les liens (lignes) entre les nœuds
 const link = g.append("g")
     .attr("class", "links")
     .selectAll("line")
     .data(links)
     .join("line")
-    .attr("class", d => `link ${d.source.id.replace(/\s+/g, '-')}`); // Utiliser le nom de la rue comme classe CSS
+    .attr("class", (d, i) => {
+        // Ajoute un identifiant unique à chaque lien pour éviter les conflits de classes
+        const linkId = `link-${i}`;
+        // Utilise le nom de la rue comme classe CSS, en remplaçant les espaces par des tirets
+        const streetClass = `link ${d.source.id.replace(/\s+/g, '-')}`;
+        return `${linkId} ${streetClass}`;
+    });
 
 // Creer les nœuds (cercles)
 const node = g.append("g")
