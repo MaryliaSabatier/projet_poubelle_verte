@@ -182,9 +182,9 @@ const ruesEtArrets = {
 };
 
 const depot = {
-    "Porte d'Ivry": { x: 800, y: 400 },
-    "Base": { x: 50, y: 50 }
+    "Base": { x: 100, y: 50 }  
 };
+
 
 // Creation des nœuds et des liens
 const nodes = [];
@@ -231,10 +231,6 @@ for (const rue in ruesEtArrets) {
     y += streetSpacing; // Passer à la rue suivante
 }
 
-// Ajouter les depots comme nœuds
-for (const depotNom in depot) {
-    nodes.push({ id: depotNom, type: "depot", x: depot[depotNom].x, y: depot[depotNom].y });
-}
 
 // Creer le SVG
 const svg = d3.select("#graph-container").append("svg")
@@ -260,13 +256,7 @@ const link = g.append("g")
     .selectAll("line")
     .data(links)
     .join("line")
-    .attr("class", (d, i) => {
-        // Ajoute un identifiant unique à chaque lien pour éviter les conflits de classes
-        const linkId = `link-${i}`;
-        // Utilise le nom de la rue comme classe CSS, en remplaçant les espaces par des tirets
-        const streetClass = `link ${d.source.id.replace(/\s+/g, '-')}`;
-        return `${linkId} ${streetClass}`;
-    });
+    .attr("class", d => `link ${d.source.id.replace(/\s+/g, '-')}`); //
 
 // Creer les nœuds (cercles)
 const node = g.append("g")
@@ -285,6 +275,25 @@ node.append("text")
     .text(d => d.id)
     .attr("x", 6)
     .attr("y", 3);
+
+// Ajouter la base comme nœud
+nodes.push({ id: "Base", type: "depot", x: depot["Base"].x, y: depot["Base"].y });
+
+  // Ajouter le dépôt "Porte d'Ivry" à l'intersection des rues "Genty-Magre" et "Bédelières"
+  const depotIvry = {
+      id: "Porte d'Ivry",
+      type: "depot",
+      // Calculer les coordonnées moyennes de l'intersection
+      x: (nodeById[ruesEtArrets["Rue Genty-Magre"].stops.find(arret => arret === "Porte d'Ivry")].x + 
+          nodeById[ruesEtArrets["Rue Bedelieres"].stops.find(arret => arret === "Porte d'Ivry")].x) / 2,
+      y: (nodeById[ruesEtArrets["Rue Genty-Magre"].stops.find(arret => arret === "Porte d'Ivry")].y + 
+          nodeById[ruesEtArrets["Rue Bedelieres"].stops.find(arret => arret === "Porte d'Ivry")].y) / 2
+  };
+  
+  nodes.push(depotIvry);
+  // Relier le dépôt aux nœuds des arrêts
+  links.push({ source: depotIvry, target: nodeById[ruesEtArrets["Rue Genty-Magre"].stops.find(arret => arret === "Porte d'Ivry")] });
+  links.push({ source: depotIvry, target: nodeById[ruesEtArrets["Rue Bedelieres"].stops.find(arret => arret === "Porte d'Ivry")] });
 
 // Simulation de force pour positionner les nœuds avec l'algorithme Fruchterman-Reingold
 const simulation = d3.forceSimulation(nodes)
