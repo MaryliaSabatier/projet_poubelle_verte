@@ -181,55 +181,77 @@ const ruesEtArrets = {
 
 };
 
-const depot = {
-    "Base": { x: 100, y: 50 }  
-};
+    // Création des nœuds et des liens
+    const nodes = [];
+    const links = [];
+    const nodeById = {}; 
 
+    const padding = 50; 
+    const width = 1500; 
+    const height = 800; 
+    const streetSpacing = 0.01; // Espacement vertical augmenté pour la lisibilité
 
-// Creation des nœuds et des liens
-const nodes = [];
-const links = [];
-const nodeById = {}; // Index pour retrouver les nœuds par leur ID
+    // Ajouter le dépôt "Porte d'Ivry" (qui est aussi la base)
+    const depotIvry = { id: "Porte d'Ivry", type: "depot" }; 
+    nodes.push(depotIvry);
+    nodeById["Porte d'Ivry"] = depotIvry; 
 
-const padding = 50; // Marge autour du SVG
-const width = 1500; // Largeur du SVG
-const height = 800; // Hauteur du SVG
-const streetSpacing = 200; // Espacement vertical entre les rues
+    // Générer les coordonnées des arrêts et des rues
+    let y = padding; 
+    for (const rue in ruesEtArrets) {
+        let x = padding; 
+        const arrets = ruesEtArrets[rue].stops;
+        const xIncrement = (width - 2 * padding) / (arrets.length - 1); 
 
-// Generer les coordonnees des arrets le long des rues
-let y = padding; // Coordonnee y initiale (avec une marge en haut)
-for (const rue in ruesEtArrets) {
-    let x = padding; // Coordonnee x initiale pour chaque rue
-    const arrets = ruesEtArrets[rue].stops;
-    const xIncrement = (width - 2 * padding) / (arrets.length - 1); // Espacement horizontal entre les arrets
+        for (let i = 0; i < arrets.length; i++) {
+            const arret = arrets[i];
 
-    for (let i = 0; i < arrets.length; i++) {
-        const arret = arrets[i];
+            // Vérifier si l'arrêt existe déjà
+            let existingNode = nodeById[arret];
+            if (!existingNode) {
+                // Créer un nouveau nœud
+                existingNode = { id: arret, type: "stop", x, y };
 
-        // Verifier si l'arret existe dejà
-        let existingNode = nodeById[arret];
-        if (!existingNode) {
-            existingNode = { id: arret, type: "stop", x, y };
-            nodes.push(existingNode);
-            nodeById[arret] = existingNode; // Ajouter le nœud à l'index
-        } else {
-            // Si l'arret existe dejà, c'est une intersection, on le replace au milieu des rues
-            existingNode.x = (existingNode.x + x) / 2;
-            existingNode.y = (existingNode.y + y) / 2;
-            existingNode.type = "intersection";
+                // Vérifier si c'est une impasse
+                const ruesConnectees = Object.values(ruesEtArrets).filter(rue => rue.stops.includes(arret));
+                if (ruesConnectees.length === 1) {
+                    existingNode.isImpasse = true;
+                }
+
+                nodes.push(existingNode);
+                nodeById[arret] = existingNode; 
+            } else {
+                // Intersection : repositionner au milieu
+                existingNode.x = (existingNode.x + x) / 2;
+                existingNode.y = (existingNode.y + y) / 2;
+                existingNode.type = "intersection";
+            }
+
+            // Créer les liens entre arrêts (si ce n'est pas le premier)
+            if (i > 0) {
+                links.push({ 
+                    source: nodeById[arrets[i - 1]], 
+                    target: existingNode, 
+                    distance: ruesEtArrets[rue].distances[i - 1],
+                    trafficLights: ruesEtArrets[rue].trafficLights[i - 1] 
+                }); 
+            }
+
+            x += xIncrement; 
         }
 
-        if (i > 0) {
-            const distance = ruesEtArrets[rue].distances[i - 1];
-            const trafficLights = ruesEtArrets[rue].trafficLights[i - 1];
-            links.push({ source: nodeById[arrets[i - 1]], target: existingNode, distance, trafficLights }); 
-        }
-
-        x += xIncrement; // Deplacer l'arret suivant sur la rue
+        y += streetSpacing; 
     }
 
-    y += streetSpacing; // Passer à la rue suivante
-}
+    // Calculer les coordonnées de "Porte d'Ivry" (base) après avoir créé les nœuds des arrêts
+    depotIvry.x = (nodeById[ruesEtArrets["Rue Genty-Magre"].stops.find(arret => arret === "Porte d'Ivry")].x + 
+                nodeById[ruesEtArrets["Rue Bedelieres"].stops.find(arret => arret === "Porte d'Ivry")].x) / 2;
+    depotIvry.y = (nodeById[ruesEtArrets["Rue Genty-Magre"].stops.find(arret => arret === "Porte d'Ivry")].y + 
+                nodeById[ruesEtArrets["Rue Bedelieres"].stops.find(arret => arret === "Porte d'Ivry")].y) / 2;
+
+    // Relier la base ("Porte d'Ivry") aux rues correspondantes
+    links.push({ source: depotIvry, target: nodeById[ruesEtArrets["Rue Genty-Magre"].stops.find(arret => arret === "Porte d'Ivry")] });
+    links.push({ source: depotIvry, target: nodeById[ruesEtArrets["Rue Bedelieres"].stops.find(arret => arret === "Porte d'Ivry")] });
 
 
 // Creer le SVG
@@ -250,24 +272,25 @@ const g = svg.append("g")
     .attr("class", "everything");
 
 
-// Créer les liens (lignes) entre les nœuds
-const link = g.append("g")
-    .attr("class", "links")
-    .selectAll("line")
-    .data(links)
-    .join("line")
-    .attr("class", d => `link ${d.source.id.replace(/\s+/g, '-')}`); //
+    // Créer les liens (lignes) entre les nœuds
+    const link = g.append("g")
+        .attr("class", "links")
+        .selectAll("line")
+        .data(links)
+        .join("line")
+        .attr("class", d => `link ${d.source.id.replace(/\s+/g, '-')}`); 
 
-// Creer les nœuds (cercles)
-const node = g.append("g")
-    .attr("class", "nodes")
-    .selectAll("g")
-    .data(nodes)
-    .join("g");
+    // Créer les nœuds (cercles)
+    const node = g.append("g")
+        .attr("class", "nodes")
+        .selectAll("g")
+        .data(nodes)
+        .join("g");
 
-node.append("circle")
-    .attr("r", d => d.type === "depot" ? 10 : 5) // Rayon legerement plus grand pour les depots
-    .attr("class", d => d.type);
+    node.append("circle")
+        .attr("r", d => d.type === "depot" ? 10 : (d.isImpasse ? 3 : 5)) // Rayon plus petit pour les impasses
+        .attr("class", d => d.type);
+
 
 // Ajouter les etiquettes de texte aux nœuds
 node.append("text")
@@ -276,24 +299,6 @@ node.append("text")
     .attr("x", 6)
     .attr("y", 3);
 
-// Ajouter la base comme nœud
-nodes.push({ id: "Base", type: "depot", x: depot["Base"].x, y: depot["Base"].y });
-
-  // Ajouter le dépôt "Porte d'Ivry" à l'intersection des rues "Genty-Magre" et "Bédelières"
-  const depotIvry = {
-      id: "Porte d'Ivry",
-      type: "depot",
-      // Calculer les coordonnées moyennes de l'intersection
-      x: (nodeById[ruesEtArrets["Rue Genty-Magre"].stops.find(arret => arret === "Porte d'Ivry")].x + 
-          nodeById[ruesEtArrets["Rue Bedelieres"].stops.find(arret => arret === "Porte d'Ivry")].x) / 2,
-      y: (nodeById[ruesEtArrets["Rue Genty-Magre"].stops.find(arret => arret === "Porte d'Ivry")].y + 
-          nodeById[ruesEtArrets["Rue Bedelieres"].stops.find(arret => arret === "Porte d'Ivry")].y) / 2
-  };
-  
-  nodes.push(depotIvry);
-  // Relier le dépôt aux nœuds des arrêts
-  links.push({ source: depotIvry, target: nodeById[ruesEtArrets["Rue Genty-Magre"].stops.find(arret => arret === "Porte d'Ivry")] });
-  links.push({ source: depotIvry, target: nodeById[ruesEtArrets["Rue Bedelieres"].stops.find(arret => arret === "Porte d'Ivry")] });
 
 // Simulation de force pour positionner les nœuds avec l'algorithme Fruchterman-Reingold
 const simulation = d3.forceSimulation(nodes)
@@ -313,6 +318,15 @@ function ticked() {
     node
         .attr("transform", d => `translate(${d.x},${d.y})`);
 };
+
+// Ajouter la base comme nœud
+nodes.push({ id: "Base", type: "depot", x: depot["Base"].x, y: depot["Base"].y });
+
+// Créer les liens vers la base (si vous souhaitez les conserver)
+for (const rue in ruesEtArrets) {
+    const premierArret = ruesEtArrets[rue].stops[0];
+    links.push({ source: "Base", target: premierArret });
+}
 
 // Initialiser la simulation
 simulation.nodes(nodes);
