@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Carte des arr\u00eats de collecte - Poubelle Verte</title>
+<title>Carte de collecte - Poubelle Verte</title>
 <script src="https://d3js.org/d3.v7.min.js"></script>
 <style>
   /* Styles pour la carte */
@@ -48,7 +48,7 @@
 <div id="graph-container"></div>
 
 <script>
-// Fonction pour g\u00e9n\u00e9rer des coordonn\u00e9es al\u00e9atoires dans une zone plus restreinte
+
 function getRandomCoords(width, height, padding) {
     return {
         x: padding + Math.random() * (width - 2 * padding),
@@ -181,6 +181,12 @@ const ruesEtArrets = {
 
 };
 
+// Données des vélos cargo (initialisation)
+  const velos = [
+    { id: "velo1", position: "Porte d'Ivry", autonomie: 50, capacite: 200, distanceParcourue: 0, feuxRencontres: 0, saison: "été", tournee: [] },
+    { id: "velo2", position: "Porte d'Ivry", autonomie: 50, capacite: 200, distanceParcourue: 0, feuxRencontres: 0, saison: "été", tournee: [] },
+    // ... autres vélos
+  ];
     // Création des nœuds et des liens
     const nodes = [];
     const links = [];
@@ -189,7 +195,7 @@ const ruesEtArrets = {
     const padding = 50; 
     const width = 1500; 
     const height = 800; 
-    const streetSpacing = 0.01; // Espacement vertical augmenté pour la lisibilité
+    const streetSpacing = 0.01; 
 
     // Ajouter le dépôt "Porte d'Ivry" (qui est aussi la base)
     const depotIvry = { id: "Porte d'Ivry", type: "depot" }; 
@@ -272,8 +278,8 @@ const g = svg.append("g")
     .attr("class", "everything");
 
 
-    // Créer les liens (lignes) entre les nœuds
-    const link = g.append("g")
+   // Créer les liens (lignes) entre les nœuds
+   const link = g.append("g")
         .attr("class", "links")
         .selectAll("line")
         .data(links)
@@ -288,17 +294,26 @@ const g = svg.append("g")
         .join("g");
 
     node.append("circle")
-        .attr("r", d => d.type === "depot" ? 10 : (d.isImpasse ? 3 : 5)) // Rayon plus petit pour les impasses
+        .attr("r", d => d.type === "depot" ? 10 : (d.isImpasse ? 3 : 5))
         .attr("class", d => d.type);
 
+    // Ajouter les étiquettes de texte aux nœuds
+    node.append("text")
+        .attr("class", "label")
+        .text(d => d.id)
+        .attr("x", 6)
+        .attr("y", 3);
 
-// Ajouter les etiquettes de texte aux nœuds
-node.append("text")
-    .attr("class", "label")
-    .text(d => d.id)
-    .attr("x", 6)
-    .attr("y", 3);
-
+    // Créer les éléments visuels pour les vélos
+    const velo = g.append("g")
+        .attr("class", "velos")
+        .selectAll("circle")
+        .data(velos)
+        .join("circle")
+        .attr("r", 7) 
+        .attr("class", "velo")
+        .attr("cx", d => nodeById[d.position].x) 
+        .attr("cy", d => nodeById[d.position].y);
 
 // Simulation de force pour positionner les nœuds avec l'algorithme Fruchterman-Reingold
 const simulation = d3.forceSimulation(nodes)
@@ -315,9 +330,30 @@ function ticked() {
         .attr("x2", d => d.target.x)
         .attr("y2", d => d.target.y);
 
-    node
-        .attr("transform", d => `translate(${d.x},${d.y})`);
+        node
+            .attr("transform", d => `translate(${d.x},${d.y})`);
+
+        // Mettre à jour la position des vélos
+        velo
+            .attr("cx", d => nodeById[d.position].x)
+            .attr("cy", d => nodeById[d.position].y);
 };
+
+function moveVelos() {
+        for (const velo of velos) {
+            // Logique de déplacement des vélos (à compléter)
+            // Exemple : déplacer le vélo vers le prochain arrêt sur sa rue
+            const rueActuelle = Object.keys(ruesEtArrets).find(rue => ruesEtArrets[rue].stops.includes(velo.position));
+            const indexArretActuel = ruesEtArrets[rueActuelle].stops.indexOf(velo.position);
+            const prochainIndexArret = (indexArretActuel + 1) % ruesEtArrets[rueActuelle].stops.length; // Boucle à la fin de la rue
+            velo.position = ruesEtArrets[rueActuelle].stops[prochainIndexArret];
+        }
+
+        simulation.alpha(0.1).restart(); // Redémarrer la simulation pour repositionner les vélos
+    }
+
+    // Déplacer les vélos toutes les 2 secondes
+    setInterval(moveVelos, 2000); 
 
 // Ajouter la base comme nœud
 nodes.push({ id: "Base", type: "depot", x: depot["Base"].x, y: depot["Base"].y });
