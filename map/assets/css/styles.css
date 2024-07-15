@@ -1,56 +1,78 @@
-html, body { margin: 0; padding: 0; width: 100%; height: 100vh; }
-svg { width: 100%; height: 100%; }
-.link { stroke: #999; stroke-opacity: 0.6; stroke-width: 2px; }
-.node circle { stroke-width: 1.5px; }
-.stop { fill: orange; }
-.depot { fill: green; }
-.intersection { fill: purple; }
-.label { font: 12px sans-serif; pointer-events: none; }
-.velo { fill: red; }
-/* Couleurs spécifiques pour chaque rue */
-.link.Rue-Croix-Baragnon { stroke: #3498db; }
-/* Ajoutez les autres styles de rue ici */
-
-body {
-    font-family: Arial, sans-serif;
-    background-color: #f0f0f0;
+/* assets/css/styles.css */
+body, html {
+    height: 100%;
     margin: 0;
-    padding: 0;
 }
 
 #graph-container {
-    width: 100%;
-    height: 100vh;
     display: flex;
+    height: 100vh;
 }
 
-
+#map {
+    flex: 1;
+    height: 100%;
+}
 
 #sidebar {
-    width: 300px;
-    background-color: white;
-    border-left: 1px solid #ddd;
-    padding: 20px;
-    box-shadow: -2px 0 5px rgba(177, 27, 27, 0.1);
+    width: 300px; /* Ajustez selon vos besoins */
     overflow-y: auto;
+    background: #f8f8f8;
+    padding: 10px;
 }
 
+
 #sidebar h2 {
-    font-size: 18px;
+    margin-top: 0;
+}
+
+.velo-info, .completed-tour-info {
+    border: 1px solid #ddd;
+    padding: 10px;
     margin-bottom: 10px;
 }
 
-#sidebar .velo-info {
-    margin-bottom: 20px;
+.tournee {
+    stroke: red;
+    stroke-width: 2px;
+    fill: none;
 }
 
-svg {
-    background-color: white;
-    border: 1px solid #ddd;
+.completed-tour {
+    stroke: blue;
+    stroke-width: 2px;
+    fill: none;
 }
 
+/* css rues */
+/* styles.css */
+.link.Rue-Croix-Baragnon { stroke: red; }
+.link.Rue-des-Arts { stroke: blue; }
+.link.Rue-Pargaminières { stroke: green; }
+.link.Rue-Saint-Rome { stroke: purple; }
+.link.Rue-Saint-Antoine-du-T { stroke: orange; }
+.link.Rue-de-la-Fonderie { stroke: pink; }
+.link.Rue-Peyrolières { stroke: brown; }
+.link.Rue-Genty-Magre { stroke: grey; }
+.link.Rue-d-Alsace-Lorraine { stroke: yellow; }
+.link.Rue-Peyras { stroke: magenta; }
+.link.Rue-du-Taur { stroke: cyan; }
+.link.Allée-Jean-Jaurès { stroke: lime; }
+.link.Rue-du-May { stroke: navy; }
+.link.Rue-des-Filatiers { stroke: teal; }
+.link.Rue-Mage { stroke: coral; }
+.link.Rue-d-Espinasse { stroke: gold; }
+.link.Rue-des-Gestes { stroke: darkgreen; }
+.link.Quai-de-la-Daurade { stroke: darkred; }
+.link.Rue-Bédelières { stroke: darkblue; }
+.link.Rue-Merlane { stroke: darkorange; }
+.link.Rue-Vélane { stroke: darkcyan; }
+.link.Rue-Étroite { stroke: darkviolet; }
+.link.Rue-des-Tourneurs { stroke: darkgoldenrod; }
+.link.Rue-de-la-Trinité { stroke: darkslateblue; }
 
-.label {
-    font-size: 12px;
-    text-anchor: start;
+/* Stroke width and other properties for all links */
+.link {
+    stroke-width: 2;
 }
+

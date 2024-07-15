@@ -3,6 +3,7 @@ console.log("Script.js is loaded");
 const nodes = [];
 const links = [];
 const nodeById = {};
+const completedTours = []; // Historique des tournées terminées
 
 const padding = 50;
 const width = 1500;
@@ -46,7 +47,8 @@ for (const rue in ruesEtArrets) {
                 source: nodeById[arrets[i - 1]],
                 target: existingNode,
                 distance: ruesEtArrets[rue].distances[i - 1],
-                trafficLights: ruesEtArrets[rue].trafficLights[i - 1]
+                trafficLights: ruesEtArrets[rue].trafficLights[i - 1],
+                rue: rue.replace(/ /g, '-')
             });
         }
 
@@ -78,7 +80,7 @@ const link = g.append("g")
     .selectAll("line")
     .data(links)
     .join("line")
-    .attr("class", d => `link ${d.source.id.replace(/\s+/g, '-')}`);
+    .attr("class", d => `link ${d.rue}`); // Assign the CSS class based on the street name
 
 const node = g.append("g")
     .attr("class", "nodes")
@@ -88,7 +90,8 @@ const node = g.append("g")
 
 node.append("circle")
     .attr("r", d => d.type === "depot" ? 10 : (d.isImpasse ? 3 : 5))
-    .attr("class", d => d.type);
+    .attr("class", d => d.type)
+    .attr("fill", d => d.type === "depot" ? "red" : (d.type === "intersection" ? "blue" : "black"));  // Color of the nodes
 
 node.append("text")
     .attr("class", "label")
@@ -103,6 +106,7 @@ const velo = g.append("g")
     .join("circle")
     .attr("r", 7)
     .attr("class", "velo")
+    .attr("fill", "green")  // Color of the bikes
     .attr("cx", d => nodeById[d.position].x)
     .attr("cy", d => nodeById[d.position].y);
 
@@ -192,32 +196,75 @@ function reconstructPath(cameFrom, current) {
     return totalPath;
 }
 
+function simulateIncidents() {
+    const incidentTypes = ['arret_bloque', 'velo_en_panne'];
+    const incidentType = incidentTypes[Math.floor(Math.random() * incidentTypes.length)];
+
+    if (incidentType === 'arret_bloque') {
+        const randomNode = nodes[Math.floor(Math.random() * nodes.length)];
+        randomNode.isBlocked = true;
+        console.log(`Incident: arrêt bloqué à ${randomNode.id}`);
+    } else if (incidentType === 'velo_en_panne') {
+        const randomVelo = velos[Math.floor(Math.random() * velos.length)];
+        randomVelo.isBroken = true;
+        console.log(`Incident: ${randomVelo.id} est en panne`);
+    }
+
+    updateMap();
+    updateVeloInfo();
+}
+
 function moveVelos() {
     for (const velo of velos) {
+        if (velo.isBroken) {
+            continue; // Skip broken bikes
+        }
+
         if (velo.autonomie <= 0 || velo.charge >= velo.capacite) {
-            alert(`${velo.id} doit retourner à la base pour recharger ou vider la charge.`);
+            console.log(`${velo.id} doit retourner à la base pour recharger ou vider la charge.`);
+            // Enregistrer la tournée terminée
+            completedTours.push({
+                id: velo.id,
+                tournee: [...velo.tournee], // Clone de l'itinéraire
+                distanceParcourue: velo.distanceParcourue,
+                feuxRencontres: velo.feuxRencontres,
+                charge: velo.charge
+            });
+
             velo.position = "Porte d'Ivry";
             velo.autonomie = 50; // Recharge
             velo.distanceParcourue = 0;
             velo.feuxRencontres = 0;
-            velo.charge = 0; // Déchargement
-            velo.tournee = ["Porte d'Ivry"];
+            velo.charge = 0;
+            velo.tournee = [];
         } else {
             const rueActuelle = Object.keys(ruesEtArrets).find(rue => ruesEtArrets[rue].stops.includes(velo.position));
             const indexArretActuel = ruesEtArrets[rueActuelle].stops.indexOf(velo.position);
+
             if (indexArretActuel < 0) continue;
+
             const prochainIndexArret = (indexArretActuel + 1) % ruesEtArrets[rueActuelle].stops.length;
             const prochainArret = ruesEtArrets[rueActuelle].stops[prochainIndexArret];
 
-            const optimalPath = aStarSearch(velo.position, prochainArret);
-            if (optimalPath.length > 0) {
-                velo.position = optimalPath[1]; // Move to the next position in the optimal path
-                const distance = getDistance(optimalPath[0], optimalPath[1]);
-                const feux = links.find(link => (link.source.id === optimalPath[0] && link.target.id === optimalPath[1]) || (link.source.id === optimalPath[1] && link.target.id === optimalPath[0])).trafficLights;
+            const path = aStarSearch(velo.position, prochainArret);
+            for (let i = 1; i < path.length; i++) {
+                const currentStop = path[i - 1];
+                const nextStop = path[i];
+
+                const distance = getDistance(currentStop, nextStop);
+                const feux = links.find(link => (link.source.id === currentStop && link.target.id === nextStop) || (link.source.id === nextStop && link.target.id === currentStop)).trafficLights;
+
+                if (nodeById[nextStop].isBlocked) {
+                    console.log(`Arrêt ${nextStop} est bloqué, recherche d'un autre itinéraire.`);
+                    break;
+                }
+
                 velo.distanceParcourue += distance;
                 velo.autonomie -= distance;
                 velo.feuxRencontres += feux;
-                velo.charge += 50; // 50 kg de déchets par arrêt
+                velo.charge += 50; // Suppose 50kg per stop
+
+                velo.position = nextStop;
                 velo.tournee.push(velo.position);
             }
         }
@@ -240,6 +287,16 @@ function updateMap() {
             .y(stop => nodeById[stop].y)
             .curve(d3.curveBasis)(d.tournee)
         );
+
+    const completedTourPath = g.selectAll(".completed-tour")
+        .data(completedTours)
+        .join("path")
+        .attr("class", "completed-tour")
+        .attr("d", d => d3.line()
+            .x(stop => nodeById[stop].x)
+            .y(stop => nodeById[stop].y)
+            .curve(d3.curveBasis)(d.tournee)
+        );
 }
 
 function updateVeloInfo() {
@@ -256,6 +313,20 @@ function updateVeloInfo() {
             <p>Distance parcourue: ${d.distanceParcourue.toFixed(2)} km</p>
             <p>Feux rencontrés: ${d.feuxRencontres}</p>
         `);
+
+    const completedToursContainer = d3.select("#completed-tours-container");
+    completedToursContainer.selectAll(".completed-tour-info")
+        .data(completedTours)
+        .join("div")
+        .attr("class", "completed-tour-info")
+        .html(d => `
+            <h4>${d.id} - Tournée terminée</h4>
+            <p>Distance parcourue: ${d.distanceParcourue.toFixed(2)} km</p>
+            <p>Charge: ${d.charge} kg</p>
+            <p>Feux rencontrés: ${d.feuxRencontres}</p>
+            <p>Itinéraire: ${d.tournee.join(" -> ")}</p>
+        `);
 }
 
 setInterval(moveVelos, 2000);
+setInterval(simulateIncidents, 10000); // Simulate incidents every 10 seconds
