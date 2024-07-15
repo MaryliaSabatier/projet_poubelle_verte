@@ -123,9 +123,7 @@ const ruesEtArrets = {
 };
 
 const velos = [
-    { id: "velo1", position: "Porte d'Ivry", autonomie: 50, capacite: 200, distanceParcourue: 0, feuxRencontres: 0, saison: "été", tournee: [] },
-    { id: "velo2", position: "Porte d'Ivry", autonomie: 50, capacite: 200, distanceParcourue: 0, feuxRencontres: 0, saison: "été", tournee: [] },
-    // ... autres vélos
+    { id: "velo1", position: "Porte d'Ivry", autonomie: 50, capacite: 200, charge: 0, distanceParcourue: 0, feuxRencontres: 0, saison: "été", tournee: [] },
 ];
 
-console.log("streets_data.js is loaded and data is:", {ruesEtArrets, velos});
+console.log("streets_data.js is loaded and data is:", { ruesEtArrets, velos });

@@ -59,7 +59,7 @@ for (const rue in ruesEtArrets) {
 console.log("Nodes after processing:", nodes);
 console.log("Links after processing:", links);
 
-const svg = d3.select("#graph-container").append("svg")
+const svg = d3.select("#map").append("svg")
     .attr("viewBox", `0 0 ${width} ${height}`);
 
 const zoom = d3.zoom()
@@ -127,36 +127,135 @@ function ticked() {
         .attr("cy", d => nodeById[d.position].y);
 }
 
+// A* Algorithm to find the optimal path
+function aStarSearch(start, goal) {
+    const openSet = [start];
+    const cameFrom = {};
+    const gScore = {};
+    const fScore = {};
+
+    nodes.forEach(node => {
+        gScore[node.id] = Infinity;
+        fScore[node.id] = Infinity;
+    });
+
+    gScore[start] = 0;
+    fScore[start] = heuristicCostEstimate(start, goal);
+
+    while (openSet.length > 0) {
+        openSet.sort((a, b) => fScore[a] - fScore[b]);
+        const current = openSet.shift();
+
+        if (current === goal) {
+            return reconstructPath(cameFrom, current);
+        }
+
+        const neighbors = links.filter(link => link.source.id === current || link.target.id === current)
+            .map(link => link.source.id === current ? link.target.id : link.source.id);
+
+        neighbors.forEach(neighbor => {
+            const tentativeGScore = gScore[current] + getDistance(current, neighbor);
+            if (tentativeGScore < gScore[neighbor]) {
+                cameFrom[neighbor] = current;
+                gScore[neighbor] = tentativeGScore;
+                fScore[neighbor] = gScore[neighbor] + heuristicCostEstimate(neighbor, goal);
+                if (!openSet.includes(neighbor)) {
+                    openSet.push(neighbor);
+                }
+            }
+        });
+    }
+
+    return []; // No path found
+}
+
+function heuristicCostEstimate(start, goal) {
+    const dx = nodeById[start].x - nodeById[goal].x;
+    const dy = nodeById[start].y - nodeById[goal].y;
+    return Math.sqrt(dx * dx + dy * dy);
+}
+
+function getDistance(start, goal) {
+    const link = links.find(link => (link.source.id === start && link.target.id === goal) || (link.source.id === goal && link.target.id === start));
+    if (link) {
+        return link.distance + (link.trafficLights / 20); // 1 km every 20 traffic lights
+    }
+    return Infinity;
+}
+
+function reconstructPath(cameFrom, current) {
+    const totalPath = [current];
+    while (current in cameFrom) {
+        current = cameFrom[current];
+        totalPath.unshift(current);
+    }
+    return totalPath;
+}
+
 function moveVelos() {
     for (const velo of velos) {
-        const rueActuelle = Object.keys(ruesEtArrets).find(rue => ruesEtArrets[rue].stops.includes(velo.position));
-        const indexArretActuel = ruesEtArrets[rueActuelle].stops.indexOf(velo.position);
-        
-        if (indexArretActuel < 0) continue;
-
-        const prochainIndexArret = (indexArretActuel + 1) % ruesEtArrets[rueActuelle].stops.length;
-        const prochainArret = ruesEtArrets[rueActuelle].stops[prochainIndexArret];
-
-        const distance = ruesEtArrets[rueActuelle].distances[indexArretActuel];
-        const feux = ruesEtArrets[rueActuelle].trafficLights[indexArretActuel];
-
-        // Mettre à jour la distance parcourue et l'autonomie du vélo
-        velo.distanceParcourue += distance;
-        velo.autonomie -= distance;
-        velo.feuxRencontres += feux;
-
-        if (velo.autonomie <= 0) {
-            alert(`${velo.id} doit retourner à la base pour recharger.`);
+        if (velo.autonomie <= 0 || velo.charge >= velo.capacite) {
+            alert(`${velo.id} doit retourner à la base pour recharger ou vider la charge.`);
             velo.position = "Porte d'Ivry";
             velo.autonomie = 50; // Recharge
             velo.distanceParcourue = 0;
             velo.feuxRencontres = 0;
+            velo.charge = 0; // Déchargement
+            velo.tournee = ["Porte d'Ivry"];
         } else {
-            velo.position = prochainArret;
+            const rueActuelle = Object.keys(ruesEtArrets).find(rue => ruesEtArrets[rue].stops.includes(velo.position));
+            const indexArretActuel = ruesEtArrets[rueActuelle].stops.indexOf(velo.position);
+            if (indexArretActuel < 0) continue;
+            const prochainIndexArret = (indexArretActuel + 1) % ruesEtArrets[rueActuelle].stops.length;
+            const prochainArret = ruesEtArrets[rueActuelle].stops[prochainIndexArret];
+
+            const optimalPath = aStarSearch(velo.position, prochainArret);
+            if (optimalPath.length > 0) {
+                velo.position = optimalPath[1]; // Move to the next position in the optimal path
+                const distance = getDistance(optimalPath[0], optimalPath[1]);
+                const feux = links.find(link => (link.source.id === optimalPath[0] && link.target.id === optimalPath[1]) || (link.source.id === optimalPath[1] && link.target.id === optimalPath[0])).trafficLights;
+                velo.distanceParcourue += distance;
+                velo.autonomie -= distance;
+                velo.feuxRencontres += feux;
+                velo.charge += 50; // 50 kg de déchets par arrêt
+                velo.tournee.push(velo.position);
+            }
         }
     }
 
-    simulation.alpha(0.1).restart();
+    updateMap();
+    updateVeloInfo();
+}
+
+function updateMap() {
+    velo.attr("cx", d => nodeById[d.position].x)
+        .attr("cy", d => nodeById[d.position].y);
+
+    const tourneePath = g.selectAll(".tournee")
+        .data(velos)
+        .join("path")
+        .attr("class", "tournee")
+        .attr("d", d => d3.line()
+            .x(stop => nodeById[stop].x)
+            .y(stop => nodeById[stop].y)
+            .curve(d3.curveBasis)(d.tournee)
+        );
+}
+
+function updateVeloInfo() {
+    const infoContainer = d3.select("#velo-info-container");
+    infoContainer.selectAll(".velo-info")
+        .data(velos)
+        .join("div")
+        .attr("class", "velo-info")
+        .html(d => `
+            <h4>${d.id}</h4>
+            <p>Position actuelle: ${d.position}</p>
+            <p>Autonomie restante: ${d.autonomie.toFixed(2)} km</p>
+            <p>Charge actuelle: ${d.charge} kg</p>
+            <p>Distance parcourue: ${d.distanceParcourue.toFixed(2)} km</p>
+            <p>Feux rencontrés: ${d.feuxRencontres}</p>
+        `);
 }
 
 setInterval(moveVelos, 2000);
