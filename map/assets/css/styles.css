@@ -1,4 +1,77 @@
 /* assets/css/styles.css */
+#map {
+    width: 100%;
+    height: calc(100vh - 20px);
+    background-color: #f0f0f0;
+    flex: 1;
+    height: 100%;
+}
+
+.nodes circle {
+    fill: #3498db;
+}
+
+.nodes .depot {
+    fill: #e74c3c;
+}
+
+.nodes .label {
+    font-size: 10px;
+    pointer-events: none;
+}
+
+.links line {
+    stroke: #ccc;
+    stroke-width: 2px;
+}
+
+.links .link {
+    stroke: #ddd;
+}
+
+.velos circle {
+    fill: #2ecc71;
+}
+
+.tournee {
+    fill: none;
+    stroke: #3498db;
+    stroke-width: 2px;
+    stroke-dasharray: 4;
+}
+
+.completed-tour {
+    fill: none;
+    stroke: #9b59b6;
+    stroke-width: 2px;
+}
+
+#sidebar {
+    position: absolute;
+    right: 20px;
+    top: 20px;
+    width: 300px;
+    background-color: white;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    padding: 10px;
+}
+
+#sidebar h2 {
+    margin-top: 0;
+}
+
+#velo-info-container, #completed-tours-container {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.velo-info, .completed-tour-info {
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #ddd;
+}
+
 body, html {
     height: 100%;
     margin: 0;
@@ -9,11 +82,6 @@ body, html {
     height: 100vh;
 }
 
-#map {
-    flex: 1;
-    height: 100%;
-}
-
 #sidebar {
     width: 300px; /* Ajustez selon vos besoins */
     overflow-y: auto;
@@ -21,31 +89,39 @@ body, html {
     padding: 10px;
 }
 
-
-#sidebar h2 {
-    margin-top: 0;
+.link {
+    stroke-width: 2px;
 }
 
-.velo-info, .completed-tour-info {
-    border: 1px solid #ddd;
-    padding: 10px;
-    margin-bottom: 10px;
+.depot {
+    fill: red;
+}
+
+.stop {
+    fill: blue;
+}
+
+.intersection {
+    fill: green;
+}
+
+.velo {
+    fill: orange;
 }
 
 .tournee {
-    stroke: red;
-    stroke-width: 2px;
     fill: none;
+    stroke: black;
+    stroke-width: 2px;
 }
 
 .completed-tour {
-    stroke: blue;
-    stroke-width: 2px;
     fill: none;
+    stroke: gray;
+    stroke-width: 2px;
 }
 
 /* css rues */
-/* styles.css */
 .link.Rue-Croix-Baragnon { stroke: red; }
 .link.Rue-des-Arts { stroke: blue; }
 .link.Rue-Pargaminières { stroke: green; }
@@ -57,7 +133,7 @@ body, html {
 .link.Rue-d-Alsace-Lorraine { stroke: yellow; }
 .link.Rue-Peyras { stroke: magenta; }
 .link.Rue-du-Taur { stroke: cyan; }
-.link.Allée-Jean-Jaurès { stroke: lime; }
+.link.Allée-Jean-Jaurès { stroke: rgb(0, 0, 0); }
 .link.Rue-du-May { stroke: navy; }
 .link.Rue-des-Filatiers { stroke: teal; }
 .link.Rue-Mage { stroke: coral; }
@@ -75,4 +151,3 @@ body, html {
 .link {
     stroke-width: 2;
 }
-

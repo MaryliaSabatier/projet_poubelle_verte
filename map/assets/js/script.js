@@ -48,7 +48,7 @@ for (const rue in ruesEtArrets) {
                 target: existingNode,
                 distance: ruesEtArrets[rue].distances[i - 1],
                 trafficLights: ruesEtArrets[rue].trafficLights[i - 1],
-                rue: rue.replace(/ /g, '-')
+                street: rue.replace(/\s+/g, '-') // Ajouter le nom de la rue comme classe
             });
         }
 
@@ -80,7 +80,7 @@ const link = g.append("g")
     .selectAll("line")
     .data(links)
     .join("line")
-    .attr("class", d => `link ${d.rue}`); // Assign the CSS class based on the street name
+    .attr("class", d => `link ${d.street}`);
 
 const node = g.append("g")
     .attr("class", "nodes")
@@ -90,8 +90,7 @@ const node = g.append("g")
 
 node.append("circle")
     .attr("r", d => d.type === "depot" ? 10 : (d.isImpasse ? 3 : 5))
-    .attr("class", d => d.type)
-    .attr("fill", d => d.type === "depot" ? "red" : (d.type === "intersection" ? "blue" : "black"));  // Color of the nodes
+    .attr("class", d => d.type);
 
 node.append("text")
     .attr("class", "label")
@@ -106,7 +105,6 @@ const velo = g.append("g")
     .join("circle")
     .attr("r", 7)
     .attr("class", "velo")
-    .attr("fill", "green")  // Color of the bikes
     .attr("cx", d => nodeById[d.position].x)
     .attr("cy", d => nodeById[d.position].y);
 
