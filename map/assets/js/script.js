@@ -4,6 +4,7 @@ const nodes = [];
 const links = [];
 const nodeById = {};
 const completedTours = []; // Historique des tournées terminées
+const unvisitedStops = new Set(); // Ensemble des arrêts non visités
 
 const padding = 50;
 const width = window.innerWidth;
@@ -36,6 +37,7 @@ for (const rue in ruesEtArrets) {
 
             nodes.push(existingNode);
             nodeById[arret.name] = existingNode;
+            unvisitedStops.add(arret.name); // Ajouter l'arrêt à l'ensemble des arrêts non visités
         } else {
             existingNode.x = (existingNode.x + x) / 2;
             existingNode.y = (existingNode.y + y) / 2;
@@ -107,8 +109,8 @@ const velo = g.append("g")
     .join("circle")
     .attr("r", 7)
     .attr("class", "velo")
-    .attr("cx", d => nodeById[d.position].x)
-    .attr("cy", d => nodeById[d.position].y);
+    .attr("cx", d => nodeById[d.position]?.x || 0)
+    .attr("cy", d => nodeById[d.position]?.y || 0);
 
 const simulation = d3.forceSimulation(nodes)
     .force("link", d3.forceLink(links).id(d => d.id).distance(80).strength(0.1))
@@ -127,8 +129,8 @@ function ticked() {
         .attr("transform", d => `translate(${d.x},${d.y})`);
 
     velo
-        .attr("cx", d => nodeById[d.position].x)
-        .attr("cy", d => nodeById[d.position].y);
+        .attr("cx", d => nodeById[d.position]?.x || 0)
+        .attr("cy", d => nodeById[d.position]?.y || 0);
 }
 
 // A* Algorithm to find the optimal path
@@ -257,7 +259,7 @@ function moveVelos() {
             }
         }
 
-        if (velo.autonomie <= 0 || velo.charge >= velo.capacite) {
+        if (velo.autonomie <= 0 || velo.charge >= velo.capacite || stopsCount === 4) {
             console.log(`${velo.id} doit retourner à la base pour recharger ou vider la charge.`);
             // Enregistrer la tournée terminée
             completedTours.push({
@@ -282,26 +284,33 @@ function moveVelos() {
 }
 
 function findNextStop(currentPosition) {
-    const rueActuelle = Object.keys(ruesEtArrets).find(rue => ruesEtArrets[rue].stops.some(stop => stop.name === currentPosition));
-    const indexArretActuel = ruesEtArrets[rueActuelle].stops.findIndex(stop => stop.name === currentPosition);
+    const unvisitedStopsArray = Array.from(unvisitedStops);
 
-    if (indexArretActuel < 0) return null;
+    if (unvisitedStopsArray.length === 0) {
+        return null;
+    }
 
-    const prochainIndexArret = (indexArretActuel + 1) % ruesEtArrets[rueActuelle].stops.length;
-    return ruesEtArrets[rueActuelle].stops[prochainIndexArret].name;
+    const closestStop = unvisitedStopsArray.reduce((prev, curr) => {
+        const prevDist = heuristicCostEstimate(currentPosition, prev);
+        const currDist = heuristicCostEstimate(currentPosition, curr);
+        return (currDist < prevDist) ? curr : prev;
+    });
+
+    unvisitedStops.delete(closestStop);
+    return closestStop;
 }
 
 function updateMap() {
-    velo.attr("cx", d => nodeById[d.position].x)
-        .attr("cy", d => nodeById[d.position].y);
+    velo.attr("cx", d => nodeById[d.position]?.x || 0)
+        .attr("cy", d => nodeById[d.position]?.y || 0);
 
     const tourneePath = g.selectAll(".tournee")
         .data(velos)
         .join("path")
         .attr("class", "tournee")
         .attr("d", d => d3.line()
-            .x(stop => nodeById[stop].x)
-            .y(stop => nodeById[stop].y)
+            .x(stop => nodeById[stop]?.x || 0)
+            .y(stop => nodeById[stop]?.y || 0)
             .curve(d3.curveBasis)(d.tournee)
         );
 
@@ -310,8 +319,8 @@ function updateMap() {
         .join("path")
         .attr("class", "completed-tour")
         .attr("d", d => d3.line()
-            .x(stop => nodeById[stop].x)
-            .y(stop => nodeById[stop].y)
+            .x(stop => nodeById[stop]?.x || 0)
+            .y(stop => nodeById[stop]?.y || 0)
             .curve(d3.curveBasis)(d.tournee)
         );
 }
