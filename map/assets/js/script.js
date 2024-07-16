@@ -6,8 +6,8 @@ const nodeById = {};
 const completedTours = []; // Historique des tournées terminées
 
 const padding = 50;
-const width = 1500;
-const height = 800;
+const width = window.innerWidth;
+const height = window.innerHeight;
 const streetSpacing = 50;
 
 const depotIvry = { id: "Porte d'Ivry", type: "depot" };
@@ -25,17 +25,17 @@ for (const rue in ruesEtArrets) {
     for (let i = 0; i < arrets.length; i++) {
         const arret = arrets[i];
 
-        let existingNode = nodeById[arret];
+        let existingNode = nodeById[arret.name];
         if (!existingNode) {
-            existingNode = { id: arret, type: "stop", x, y };
+            existingNode = { id: arret.name, type: "stop", x, y };
 
-            const ruesConnectees = Object.values(ruesEtArrets).filter(rue => rue.stops.includes(arret));
+            const ruesConnectees = Object.values(ruesEtArrets).filter(rue => rue.stops.some(s => s.name === arret.name));
             if (ruesConnectees.length === 1) {
                 existingNode.isImpasse = true;
             }
 
             nodes.push(existingNode);
-            nodeById[arret] = existingNode;
+            nodeById[arret.name] = existingNode;
         } else {
             existingNode.x = (existingNode.x + x) / 2;
             existingNode.y = (existingNode.y + y) / 2;
@@ -44,7 +44,7 @@ for (const rue in ruesEtArrets) {
 
         if (i > 0) {
             links.push({
-                source: nodeById[arrets[i - 1]],
+                source: nodeById[arrets[i - 1].name],
                 target: existingNode,
                 distance: ruesEtArrets[rue].distances[i - 1],
                 trafficLights: ruesEtArrets[rue].trafficLights[i - 1],
@@ -62,6 +62,8 @@ console.log("Nodes after processing:", nodes);
 console.log("Links after processing:", links);
 
 const svg = d3.select("#map").append("svg")
+    .attr("width", width)
+    .attr("height", height)
     .attr("viewBox", `0 0 ${width} ${height}`);
 
 const zoom = d3.zoom()
@@ -236,13 +238,13 @@ function moveVelos() {
             velo.charge = 0;
             velo.tournee = [];
         } else {
-            const rueActuelle = Object.keys(ruesEtArrets).find(rue => ruesEtArrets[rue].stops.includes(velo.position));
-            const indexArretActuel = ruesEtArrets[rueActuelle].stops.indexOf(velo.position);
+            const rueActuelle = Object.keys(ruesEtArrets).find(rue => ruesEtArrets[rue].stops.some(stop => stop.name === velo.position));
+            const indexArretActuel = ruesEtArrets[rueActuelle].stops.findIndex(stop => stop.name === velo.position);
 
             if (indexArretActuel < 0) continue;
 
             const prochainIndexArret = (indexArretActuel + 1) % ruesEtArrets[rueActuelle].stops.length;
-            const prochainArret = ruesEtArrets[rueActuelle].stops[prochainIndexArret];
+            const prochainArret = ruesEtArrets[rueActuelle].stops[prochainIndexArret].name;
 
             const path = aStarSearch(velo.position, prochainArret);
             for (let i = 1; i < path.length; i++) {
@@ -325,6 +327,9 @@ function updateVeloInfo() {
             <p>Itinéraire: ${d.tournee.join(" -> ")}</p>
         `);
 }
+
+setInterval(updateVeloInfo, 2000); // Mettez à jour les infos des vélos toutes les 2 secondes
+
 
 setInterval(moveVelos, 2000);
 setInterval(simulateIncidents, 10000); // Simulate incidents every 10 seconds

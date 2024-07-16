@@ -1,12 +1,57 @@
 /* assets/css/styles.css */
-#map {
-    width: 100%;
-    height: calc(100vh - 20px);
-    background-color: #f0f0f0;
-    flex: 1;
+html, body {
     height: 100%;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
+#graph-container {
+    display: flex;
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+}
+
+#map {
+    flex: 1;
+    background-color: #f0f0f0;
+    height: 100%;
+    width: 75%; /* Ajustez pour donner de la place à la sidebar */
+    margin: 0;
+    padding: 0;
+}
+
+#sidebar {
+    width: 25%; /* Ajustez selon vos besoins */
+    height: 100%;
+    background-color: white;
+    border-left: 1px solid #ccc; /* Ajout d'une bordure gauche pour séparer */
+    box-sizing: border-box;
+    padding: 10px;
+    overflow-y: auto;
+    margin: 0;
+}
+
+#sidebar h2 {
+    margin-top: 0;
+}
+
+#velo-info-container, #completed-tours-container {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.velo-info, .completed-tour-info {
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #ddd;
+}
+
+/* Styles des éléments sur la carte */
 .nodes circle {
     fill: #3498db;
 }
@@ -46,80 +91,10 @@
     stroke-width: 2px;
 }
 
-#sidebar {
-    position: absolute;
-    right: 20px;
-    top: 20px;
-    width: 300px;
-    background-color: white;
-    border: 1px solid #ccc;
-    border-radius: 8px;
-    padding: 10px;
-}
-
-#sidebar h2 {
-    margin-top: 0;
-}
-
-#velo-info-container, #completed-tours-container {
-    max-height: 300px;
-    overflow-y: auto;
-}
-
-.velo-info, .completed-tour-info {
-    margin-bottom: 10px;
-    padding-bottom: 10px;
-    border-bottom: 1px solid #ddd;
-}
-
-body, html {
-    height: 100%;
-    margin: 0;
-}
-
-#graph-container {
-    display: flex;
-    height: 100vh;
-}
-
-#sidebar {
-    width: 300px; /* Ajustez selon vos besoins */
-    overflow-y: auto;
-    background: #f8f8f8;
-    padding: 10px;
-}
-
-.link {
-    stroke-width: 2px;
-}
-
-.depot {
-    fill: red;
-}
-
-.stop {
-    fill: blue;
-}
-
-.intersection {
-    fill: green;
-}
-
-.velo {
-    fill: orange;
-}
-
-.tournee {
-    fill: none;
-    stroke: black;
-    stroke-width: 2px;
-}
-
-.completed-tour {
-    fill: none;
-    stroke: gray;
-    stroke-width: 2px;
-}
+/* Styles pour les rues */
+.link.Rue-Croix-Baragnon { stroke: red; }
+.link.Rue-des-Arts { stroke: blue; }
+/* Ajoutez les autres rues ici avec leurs styles respectifs */
 
 /* css rues */
 .link.Rue-Croix-Baragnon { stroke: red; }
