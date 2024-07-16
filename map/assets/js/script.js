@@ -220,6 +220,43 @@ function moveVelos() {
             continue; // Skip broken bikes
         }
 
+        let stopsCount = 0;
+
+        while (velo.autonomie > 0 && velo.charge < velo.capacite && stopsCount < 4) {
+            const nextStop = findNextStop(velo.position);
+
+            if (!nextStop) {
+                break;
+            }
+
+            const path = aStarSearch(velo.position, nextStop);
+            for (let i = 1; i < path.length; i++) {
+                const currentStop = path[i - 1];
+                const nextStop = path[i];
+
+                const distance = getDistance(currentStop, nextStop);
+                const feux = links.find(link => (link.source.id === currentStop && link.target.id === nextStop) || (link.source.id === nextStop && link.target.id === currentStop)).trafficLights;
+
+                if (nodeById[nextStop].isBlocked) {
+                    console.log(`Arrêt ${nextStop} est bloqué, recherche d'un autre itinéraire.`);
+                    break;
+                }
+
+                velo.distanceParcourue += distance;
+                velo.autonomie -= distance;
+                velo.feuxRencontres += feux;
+                velo.charge += 50; // Suppose 50kg per stop
+                stopsCount++;
+
+                velo.position = nextStop;
+                velo.tournee.push(velo.position);
+
+                if (velo.autonomie <= 0 || velo.charge >= velo.capacite) {
+                    break;
+                }
+            }
+        }
+
         if (velo.autonomie <= 0 || velo.charge >= velo.capacite) {
             console.log(`${velo.id} doit retourner à la base pour recharger ou vider la charge.`);
             // Enregistrer la tournée terminée
@@ -237,41 +274,21 @@ function moveVelos() {
             velo.feuxRencontres = 0;
             velo.charge = 0;
             velo.tournee = [];
-        } else {
-            const rueActuelle = Object.keys(ruesEtArrets).find(rue => ruesEtArrets[rue].stops.some(stop => stop.name === velo.position));
-            const indexArretActuel = ruesEtArrets[rueActuelle].stops.findIndex(stop => stop.name === velo.position);
-
-            if (indexArretActuel < 0) continue;
-
-            const prochainIndexArret = (indexArretActuel + 1) % ruesEtArrets[rueActuelle].stops.length;
-            const prochainArret = ruesEtArrets[rueActuelle].stops[prochainIndexArret].name;
-
-            const path = aStarSearch(velo.position, prochainArret);
-            for (let i = 1; i < path.length; i++) {
-                const currentStop = path[i - 1];
-                const nextStop = path[i];
-
-                const distance = getDistance(currentStop, nextStop);
-                const feux = links.find(link => (link.source.id === currentStop && link.target.id === nextStop) || (link.source.id === nextStop && link.target.id === currentStop)).trafficLights;
-
-                if (nodeById[nextStop].isBlocked) {
-                    console.log(`Arrêt ${nextStop} est bloqué, recherche d'un autre itinéraire.`);
-                    break;
-                }
-
-                velo.distanceParcourue += distance;
-                velo.autonomie -= distance;
-                velo.feuxRencontres += feux;
-                velo.charge += 50; // Suppose 50kg per stop
-
-                velo.position = nextStop;
-                velo.tournee.push(velo.position);
-            }
         }
     }
 
     updateMap();
     updateVeloInfo();
+}
+
+function findNextStop(currentPosition) {
+    const rueActuelle = Object.keys(ruesEtArrets).find(rue => ruesEtArrets[rue].stops.some(stop => stop.name === currentPosition));
+    const indexArretActuel = ruesEtArrets[rueActuelle].stops.findIndex(stop => stop.name === currentPosition);
+
+    if (indexArretActuel < 0) return null;
+
+    const prochainIndexArret = (indexArretActuel + 1) % ruesEtArrets[rueActuelle].stops.length;
+    return ruesEtArrets[rueActuelle].stops[prochainIndexArret].name;
 }
 
 function updateMap() {
@@ -329,7 +346,6 @@ function updateVeloInfo() {
 }
 
 setInterval(updateVeloInfo, 2000); // Mettez à jour les infos des vélos toutes les 2 secondes
-
 
 setInterval(moveVelos, 2000);
 setInterval(simulateIncidents, 10000); // Simulate incidents every 10 seconds
