@@ -102,18 +102,12 @@ node.append("text")
     .attr("x", 6)
     .attr("y", 3);
 
-const velos = [
-    { id: "Velo1", position: "Porte d'Ivry", autonomie: 50, capacite: 200, charge: 0, distanceParcourue: 0, feuxRencontres: 0, tournee: [], isBroken: false },
-    { id: "Velo2", position: "Porte d'Ivry", autonomie: 50, capacite: 200, charge: 0, distanceParcourue: 0, feuxRencontres: 0, tournee: [], isBroken: false },
-    // Ajoutez d'autres vélos ici si nécessaire
-];
-
 const velo = g.append("g")
     .attr("class", "velos")
     .selectAll("circle")
     .data(velos)
     .join("circle")
-    .attr("r", 10) // Augmenter la taille des points pour représenter les vélos
+    .attr("r", 7)
     .attr("class", "velo")
     .attr("cx", d => nodeById[d.position]?.x || 0)
     .attr("cy", d => nodeById[d.position]?.y || 0);
@@ -228,7 +222,9 @@ function moveVelos() {
             continue; // Skip broken bikes
         }
 
-        while (velo.autonomie > 0 && velo.charge < velo.capacite) {
+        let stopsCount = 0;
+
+        while (velo.autonomie > 0 && velo.charge < velo.capacite && stopsCount < 4) {
             const nextStop = findNextStop(velo.position);
 
             if (!nextStop) {
@@ -252,8 +248,10 @@ function moveVelos() {
                 velo.autonomie -= distance;
                 velo.feuxRencontres += feux;
                 velo.charge += 50; // Suppose 50kg per stop
+                stopsCount++;
 
                 velo.position = nextStop;
+                velo.tournee.push(velo.position);
 
                 if (velo.autonomie <= 0 || velo.charge >= velo.capacite) {
                     break;
@@ -261,7 +259,7 @@ function moveVelos() {
             }
         }
 
-        if (velo.autonomie <= 0 || velo.charge >= velo.capacite || unvisitedStops.size === 0) {
+        if (velo.autonomie <= 0 || velo.charge >= velo.capacite || stopsCount === 4) {
             console.log(`${velo.id} doit retourner à la base pour recharger ou vider la charge.`);
             // Enregistrer la tournée terminée
             completedTours.push({
@@ -305,6 +303,8 @@ function findNextStop(currentPosition) {
 function updateMap() {
     velo.attr("cx", d => nodeById[d.position]?.x || 0)
         .attr("cy", d => nodeById[d.position]?.y || 0);
+
+
 }
 
 function updateVeloInfo() {

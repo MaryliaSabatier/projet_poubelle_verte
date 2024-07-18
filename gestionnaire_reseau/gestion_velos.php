@@ -18,83 +18,55 @@ if ($conn->connect_error) {
     die("La connexion a échoué : " . $conn->connect_error);
 }
 
-// Traitement des actions (suppression de vélo)
-if (isset($_GET['action']) && $_GET['action'] == 'supprimer' && isset($_GET['id'])) {
-    $veloId = $_GET['id'];
+// Traitement du formulaire d'ajout de vélo
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    $numero = $_POST['numero'];
+    $etat = $_POST['etat'];
+    $autonomie_km = $_POST['autonomie_km'];
+    $date_derniere_revision = $_POST['date_derniere_revision'];
 
-    // Suppression du vélo
-    $stmt = $conn->prepare("DELETE FROM velos WHERE id = ?");
-    $stmt->bind_param("i", $veloId);
+    $stmt = $conn->prepare("INSERT INTO velos (numero, etat, autonomie_km, date_derniere_revision) VALUES (?, ?, ?, ?)");
+    $stmt->bind_param("ssis", $numero, $etat, $autonomie_km, $date_derniere_revision);
+
     if ($stmt->execute()) {
-        header('Location: gestion_velos.php'); // Redirection après suppression réussie
+        header('Location: gestion_velos.php'); // Redirection après ajout réussi
         exit();
     } else {
-        echo "Erreur lors de la suppression du vélo.";
+        echo "Erreur lors de l'ajout du vélo.";
     }
 }
-
-// Récupération de la liste des vélos
-$sqlVelos = "SELECT * FROM velos";
-$resultVelos = $conn->query($sqlVelos);
 ?>
 
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Gestion des vélos</title>
+    <title>Ajouter un vélo</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
 </head>
 <body>
     <div class="container mt-5">
-        <h1 class="text-center mb-4">Gestion des vélos</h1>
-        <a href="../logout.php" class="btn btn-danger logout-btn">Déconnexion</a>
+        <h1 class="text-center mb-4">Ajouter un vélo</h1>
+        <a href="gestion_velos.php" class="btn btn-secondary mb-3">Retour à la gestion des vélos</a>
 
-        <div class="row">
-            <div class="col-md-3">
-                <ul class="nav flex-column">
-                    <li class="nav-item">
-                        <a class="nav-link" href="gestionnaire_reseau.php">Tableau de bord</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link active" href="gestion_velos.php">Gestion des vélos</a>
-                    </li>
-                    </ul>
+        <form method="post" action="ajouter_velo.php">
+            <div class="mb-3">
+                <label for="numero" class="form-label">Numéro</label>
+                <input type="text" class="form-control" id="numero" name="numero" required>
             </div>
-            <div class="col-md-9">
-                <h2>Bienvenue, <?php echo $_SESSION['prenom']; ?>!</h2>
-
-                <h3>Liste des vélos</h3>
-                <table class="table table-striped">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Numéro</th>
-                            <th>État</th>
-                            <th>Autonomie (km)</th>
-                            <th>Date dernière révision</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php while ($row = $resultVelos->fetch_assoc()): ?>
-                            <tr>
-                                <td><?php echo $row["id"]; ?></td>
-                                <td><?php echo $row["numero"]; ?></td>
-                                <td><?php echo $row["etat"]; ?></td>
-                                <td><?php echo $row["autonomie_km"]; ?></td>
-                                <td><?php echo $row["date_derniere_revision"]; ?></td>
-                                <td>
-                                    <a href="modifier_velo.php?id=<?php echo $row["id"]; ?>" class="btn btn-primary btn-sm">Modifier</a>
-                                    <a href="gestion_velos.php?action=supprimer&id=<?php echo $row["id"]; ?>" class="btn btn-danger btn-sm" onclick="return confirm('Êtes-vous sûr de vouloir supprimer ce vélo ?')">Supprimer</a>
-                                </td>
-                            </tr>
-                        <?php endwhile; ?>
-                    </tbody>
-                </table>
-
-                <a href="ajouter_velo.php" class="btn btn-success">Ajouter un vélo</a>
+            <div class="mb-3">
+                <label for="etat" class="form-label">État</label>
+                <input type="text" class="form-control" id="etat" name="etat" required>
             </div>
-        </div>
+            <div class="mb-3">
+                <label for="autonomie_km" class="form-label">Autonomie (km)</label>
+                <input type="number" class="form-control" id="autonomie_km" name="autonomie_km" required>
+            </div>
+            <div class="mb-3">
+                <label for="date_derniere_revision" class="form-label">Date dernière révision</label>
+                <input type="date" class="form-control" id="date_derniere_revision" name="date_derniere_revision" required>
+            </div>
+            <button type="submit" class="btn btn-success">Ajouter</button>
+        </form>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>

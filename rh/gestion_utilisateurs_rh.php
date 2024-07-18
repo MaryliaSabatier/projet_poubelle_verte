@@ -21,7 +21,7 @@ if ($conn->connect_error) {
 // Requêtes pour récupérer les données du tableau de bord
 $sqlTotalUtilisateurs = "SELECT COUNT(*) as total FROM utilisateurs";
 $sqlTotalCyclistes = "SELECT COUNT(*) as total FROM utilisateurs WHERE role_id = 3"; 
-$sqlTotalMalade = "SELECT COUNT(*) as total FROM utilisateurs WHERE malade = 1";
+$sqlTotalMalade = "SELECT COUNT(*) as total FROM utilisateurs WHERE disponibilite = 'malade'";
 
 $resultTotalUtilisateurs = $conn->query($sqlTotalUtilisateurs);
 $resultTotalCyclistes = $conn->query($sqlTotalCyclistes);
@@ -32,7 +32,7 @@ $totalCyclistes = $resultTotalCyclistes->fetch_assoc()['total'];
 $totalMalade = $resultTotalMalade->fetch_assoc()['total'];
 
 // Récupération des utilisateurs et de leurs rôles
-$sqlUtilisateurs = "SELECT utilisateurs.id, utilisateurs.nom, utilisateurs.prenom, utilisateurs.email, roles.nom AS role, utilisateurs.malade
+$sqlUtilisateurs = "SELECT utilisateurs.id, utilisateurs.nom, utilisateurs.prenom, utilisateurs.email, roles.nom AS role, utilisateurs.disponibilite
                     FROM utilisateurs 
                     INNER JOIN roles ON utilisateurs.role_id = roles.id";
 $resultUtilisateurs = $conn->query($sqlUtilisateurs);
@@ -54,12 +54,12 @@ if (isset($_GET['action']) && isset($_GET['id'])) {
         }
     } elseif ($action == 'marquer_malade') {
         // Marquer l'utilisateur comme malade
-        $stmt = $conn->prepare("UPDATE utilisateurs SET malade = 1 WHERE id = ?");
+        $stmt = $conn->prepare("UPDATE utilisateurs SET disponibilite = 'malade' WHERE id = ?");
         $stmt->bind_param("i", $userId);
         $stmt->execute();
     } elseif ($action == 'marquer_disponible') {
         // Marquer l'utilisateur comme disponible
-        $stmt = $conn->prepare("UPDATE utilisateurs SET malade = 0 WHERE id = ?");
+        $stmt = $conn->prepare("UPDATE utilisateurs SET disponibilite = 'disponible' WHERE id = ?");
         $stmt->bind_param("i", $userId);
         $stmt->execute();
     }
@@ -123,11 +123,11 @@ if (isset($_GET['action']) && isset($_GET['id'])) {
                                 <td><?php echo $row["prenom"]; ?></td>
                                 <td><?php echo $row["email"]; ?></td>
                                 <td><?php echo $row["role"]; ?></td>
-                                <td><?php echo ($row["malade"] == 1) ? 'Malade' : 'Disponible'; ?></td>
+                                <td><?php echo ($row["disponibilite"] == 'malade') ? 'Malade' : 'Disponible'; ?></td>
                                 <td>
                                     <a href="modifier_utilisateur_rh.php?id=<?php echo $row["id"]; ?>" class="btn btn-primary btn-sm">Modifier</a>
                                     <a href="gestion_utilisateurs_rh.php?action=supprimer&id=<?php echo $row["id"]; ?>" class="btn btn-danger btn-sm" onclick="return confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ?')">Supprimer</a>
-                                    <?php if ($row["malade"] == 1): ?>
+                                    <?php if ($row["disponibilite"] == 'malade'): ?>
                                         <a href="gestion_utilisateurs_rh.php?action=marquer_disponible&id=<?php echo $row["id"]; ?>" class="btn btn-success btn-sm">Marquer disponible</a>
                                     <?php else: ?>
                                         <a href="gestion_utilisateurs_rh.php?action=marquer_malade&id=<?php echo $row["id"]; ?>" class="btn btn-warning btn-sm">Marquer malade</a>

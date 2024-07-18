@@ -20,8 +20,8 @@ if ($conn->connect_error) {
 
 // Requêtes pour récupérer les données du tableau de bord
 $sqlTotalUtilisateurs = "SELECT COUNT(*) as total FROM utilisateurs";
-$sqlTotalCyclistes = "SELECT COUNT(*) as total FROM utilisateurs WHERE role_id = 3"; 
-$sqlTotalMalade = "SELECT COUNT(*) as total FROM utilisateurs WHERE malade = 1";
+$sqlTotalCyclistes = "SELECT COUNT(*) as total FROM utilisateurs WHERE role_id = 3";
+$sqlTotalMalade = "SELECT COUNT(*) as total FROM utilisateurs WHERE disponibilite = 'malade'"; // Utilisation de la colonne 'disponibilite'
 
 $resultTotalUtilisateurs = $conn->query($sqlTotalUtilisateurs);
 $resultTotalCyclistes = $conn->query($sqlTotalCyclistes);
@@ -52,7 +52,7 @@ $totalMalade = $resultTotalMalade->fetch_assoc()['total'];
                     <li class="nav-item">
                         <a class="nav-link" href="gestion_utilisateurs_rh.php">Gestion des utilisateurs</a>
                     </li>
-                    </ul>
+                </ul>
             </div>
             <div class="col-md-9">
                 <h2>Bienvenue, <?php echo $_SESSION['prenom']; ?>!</h2>
