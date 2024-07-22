@@ -60,6 +60,7 @@ $totalIncidents = $resultTotalIncidents->fetch_assoc()['total'];
     <div class="container mt-5">
         <h1 class="text-center mb-4">Interface Gestionnaire de Réseau</h1>
         <a href="../logout.php" class="btn btn-danger logout-btn">Déconnexion</a>
+        <a href="../map/index.html" class="btn btn-primary mb-3">Visualiser la carte</a>
 
         <div class="row">
             <div class="col-md-3">

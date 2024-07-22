@@ -102,241 +102,182 @@ node.append("text")
     .attr("x", 6)
     .attr("y", 3);
 
-const velo = g.append("g")
-    .attr("class", "velos")
-    .selectAll("circle")
-    .data(velos)
-    .join("circle")
-    .attr("r", 7)
-    .attr("class", "velo")
-    .attr("cx", d => nodeById[d.position]?.x || 0)
-    .attr("cy", d => nodeById[d.position]?.y || 0);
+// Fetch the velos data from the server
+fetch('get_velos.php')
+    .then(response => response.json())
+    .then(data => {
+        const velos = data;
 
-const simulation = d3.forceSimulation(nodes)
-    .force("link", d3.forceLink(links).id(d => d.id).distance(80).strength(0.1))
-    .force("charge", d3.forceManyBody().strength(-50))
-    .force("center", d3.forceCenter(width / 2, height / 2))
-    .on("tick", ticked);
+        const velo = g.append("g")
+            .attr("class", "velos")
+            .selectAll("circle")
+            .data(velos)
+            .join("circle")
+            .attr("r", 7)
+            .attr("class", "velo")
+            .attr("cx", d => nodeById[d.position]?.x || 0)
+            .attr("cy", d => nodeById[d.position]?.y || 0);
 
-function ticked() {
-    link
-        .attr("x1", d => d.source.x)
-        .attr("y1", d => d.source.y)
-        .attr("x2", d => d.target.x)
-        .attr("y2", d => d.target.y);
+        const simulation = d3.forceSimulation(nodes)
+            .force("link", d3.forceLink(links).id(d => d.id).distance(80).strength(0.1))
+            .force("charge", d3.forceManyBody().strength(-50))
+            .force("center", d3.forceCenter(width / 2, height / 2))
+            .on("tick", ticked);
 
-    node
-        .attr("transform", d => `translate(${d.x},${d.y})`);
+        function ticked() {
+            link
+                .attr("x1", d => d.source.x)
+                .attr("y1", d => d.source.y)
+                .attr("x2", d => d.target.x)
+                .attr("y2", d => d.target.y);
 
-    velo
-        .attr("cx", d => nodeById[d.position]?.x || 0)
-        .attr("cy", d => nodeById[d.position]?.y || 0);
-}
+            node
+                .attr("transform", d => `translate(${d.x},${d.y})`);
 
-// A* Algorithm to find the optimal path
-function aStarSearch(start, goal) {
-    const openSet = [start];
-    const cameFrom = {};
-    const gScore = {};
-    const fScore = {};
-
-    nodes.forEach(node => {
-        gScore[node.id] = Infinity;
-        fScore[node.id] = Infinity;
-    });
-
-    gScore[start] = 0;
-    fScore[start] = heuristicCostEstimate(start, goal);
-
-    while (openSet.length > 0) {
-        openSet.sort((a, b) => fScore[a] - fScore[b]);
-        const current = openSet.shift();
-
-        if (current === goal) {
-            return reconstructPath(cameFrom, current);
+            velo
+                .attr("cx", d => nodeById[d.position]?.x || 0)
+                .attr("cy", d => nodeById[d.position]?.y || 0);
         }
 
-        const neighbors = links.filter(link => link.source.id === current || link.target.id === current)
-            .map(link => link.source.id === current ? link.target.id : link.source.id);
+        function simulateIncidents() {
+            const incidentTypes = ['arret_bloque', 'velo_en_panne'];
+            const incidentType = incidentTypes[Math.floor(Math.random() * incidentTypes.length)];
 
-        neighbors.forEach(neighbor => {
-            const tentativeGScore = gScore[current] + getDistance(current, neighbor);
-            if (tentativeGScore < gScore[neighbor]) {
-                cameFrom[neighbor] = current;
-                gScore[neighbor] = tentativeGScore;
-                fScore[neighbor] = gScore[neighbor] + heuristicCostEstimate(neighbor, goal);
-                if (!openSet.includes(neighbor)) {
-                    openSet.push(neighbor);
-                }
+            if (incidentType === 'arret_bloque') {
+                const randomNode = nodes[Math.floor(Math.random() * nodes.length)];
+                randomNode.isBlocked = true;
+                console.log(`Incident: arrêt bloqué à ${randomNode.id}`);
+            } else if (incidentType === 'velo_en_panne') {
+                const randomVelo = velos[Math.floor(Math.random() * velos.length)];
+                randomVelo.isBroken = true;
+                console.log(`Incident: ${randomVelo.id} est en panne`);
             }
-        });
-    }
 
-    return []; // No path found
-}
-
-function heuristicCostEstimate(start, goal) {
-    const dx = nodeById[start].x - nodeById[goal].x;
-    const dy = nodeById[start].y - nodeById[goal].y;
-    return Math.sqrt(dx * dx + dy * dy);
-}
-
-function getDistance(start, goal) {
-    const link = links.find(link => (link.source.id === start && link.target.id === goal) || (link.source.id === goal && link.target.id === start));
-    if (link) {
-        return link.distance + (link.trafficLights / 20); // 1 km every 20 traffic lights
-    }
-    return Infinity;
-}
-
-function reconstructPath(cameFrom, current) {
-    const totalPath = [current];
-    while (current in cameFrom) {
-        current = cameFrom[current];
-        totalPath.unshift(current);
-    }
-    return totalPath;
-}
-
-function simulateIncidents() {
-    const incidentTypes = ['arret_bloque', 'velo_en_panne'];
-    const incidentType = incidentTypes[Math.floor(Math.random() * incidentTypes.length)];
-
-    if (incidentType === 'arret_bloque') {
-        const randomNode = nodes[Math.floor(Math.random() * nodes.length)];
-        randomNode.isBlocked = true;
-        console.log(`Incident: arrêt bloqué à ${randomNode.id}`);
-    } else if (incidentType === 'velo_en_panne') {
-        const randomVelo = velos[Math.floor(Math.random() * velos.length)];
-        randomVelo.isBroken = true;
-        console.log(`Incident: ${randomVelo.id} est en panne`);
-    }
-
-    updateMap();
-    updateVeloInfo();
-}
-
-function moveVelos() {
-    for (const velo of velos) {
-        if (velo.isBroken) {
-            continue; // Skip broken bikes
+            updateMap();
+            updateVeloInfo();
         }
 
-        let stopsCount = 0;
-
-        while (velo.autonomie > 0 && velo.charge < velo.capacite && stopsCount < 4) {
-            const nextStop = findNextStop(velo.position);
-
-            if (!nextStop) {
-                break;
-            }
-
-            const path = aStarSearch(velo.position, nextStop);
-            for (let i = 1; i < path.length; i++) {
-                const currentStop = path[i - 1];
-                const nextStop = path[i];
-
-                const distance = getDistance(currentStop, nextStop);
-                const feux = links.find(link => (link.source.id === currentStop && link.target.id === nextStop) || (link.source.id === nextStop && link.target.id === currentStop)).trafficLights;
-
-                if (nodeById[nextStop].isBlocked) {
-                    console.log(`Arrêt ${nextStop} est bloqué, recherche d'un autre itinéraire.`);
-                    break;
+        function moveVelos() {
+            for (const velo of velos) {
+                if (velo.isBroken) {
+                    continue; // Skip broken bikes
                 }
 
-                velo.distanceParcourue += distance;
-                velo.autonomie -= distance;
-                velo.feuxRencontres += feux;
-                velo.charge += 50; // Suppose 50kg per stop
-                stopsCount++;
+                let stopsCount = 0;
 
-                velo.position = nextStop;
-                velo.tournee.push(velo.position);
+                while (velo.autonomie > 0 && velo.charge < velo.capacite && stopsCount < 4) {
+                    const nextStop = findNextStop(velo.position);
 
-                if (velo.autonomie <= 0 || velo.charge >= velo.capacite) {
-                    break;
+                    if (!nextStop) {
+                        break;
+                    }
+
+                    const path = aStarSearch(velo.position, nextStop);
+                    for (let i = 1; i < path.length; i++) {
+                        const currentStop = path[i - 1];
+                        const nextStop = path[i];
+
+                        const distance = getDistance(currentStop, nextStop);
+                        const feux = links.find(link => (link.source.id === currentStop && link.target.id === nextStop) || (link.source.id === nextStop && link.target.id === currentStop)).trafficLights;
+
+                        if (nodeById[nextStop].isBlocked) {
+                            console.log(`Arrêt ${nextStop} est bloqué, recherche d'un autre itinéraire.`);
+                            break;
+                        }
+
+                        velo.distanceParcourue += distance;
+                        velo.autonomie -= distance;
+                        velo.feuxRencontres += feux;
+                        velo.charge += 50; // Suppose 50kg per stop
+                        stopsCount++;
+
+                        velo.position = nextStop;
+                        velo.tournee.push(velo.position);
+
+                        if (velo.autonomie <= 0 || velo.charge >= velo.capacite) {
+                            break;
+                        }
+                    }
+                }
+
+                if (velo.autonomie <= 0 || velo.charge >= velo.capacite || stopsCount === 4) {
+                    console.log(`${velo.id} doit retourner à la base pour recharger ou vider la charge.`);
+                    // Enregistrer la tournée terminée
+                    completedTours.push({
+                        id: velo.id,
+                        tournee: [...velo.tournee], // Clone de l'itinéraire
+                        distanceParcourue: velo.distanceParcourue,
+                        feuxRencontres: velo.feuxRencontres,
+                        charge: velo.charge
+                    });
+
+                    velo.position = "Porte d'Ivry";
+                    velo.autonomie = 50; // Recharge
+                    velo.distanceParcourue = 0;
+                    velo.feuxRencontres = 0;
+                    velo.charge = 0;
+                    velo.tournee = [];
                 }
             }
+
+            updateMap();
+            updateVeloInfo();
         }
 
-        if (velo.autonomie <= 0 || velo.charge >= velo.capacite || stopsCount === 4) {
-            console.log(`${velo.id} doit retourner à la base pour recharger ou vider la charge.`);
-            // Enregistrer la tournée terminée
-            completedTours.push({
-                id: velo.id,
-                tournee: [...velo.tournee], // Clone de l'itinéraire
-                distanceParcourue: velo.distanceParcourue,
-                feuxRencontres: velo.feuxRencontres,
-                charge: velo.charge
+        function findNextStop(currentPosition) {
+            const unvisitedStopsArray = Array.from(unvisitedStops);
+
+            if (unvisitedStopsArray.length === 0) {
+                return null;
+            }
+
+            const closestStop = unvisitedStopsArray.reduce((prev, curr) => {
+                const prevDist = heuristicCostEstimate(currentPosition, prev);
+                const currDist = heuristicCostEstimate(currentPosition, curr);
+                return (currDist < prevDist) ? curr : prev;
             });
 
-            velo.position = "Porte d'Ivry";
-            velo.autonomie = 50; // Recharge
-            velo.distanceParcourue = 0;
-            velo.feuxRencontres = 0;
-            velo.charge = 0;
-            velo.tournee = [];
+            unvisitedStops.delete(closestStop);
+            return closestStop;
         }
-    }
 
-    updateMap();
-    updateVeloInfo();
-}
+        function updateMap() {
+            velo.attr("cx", d => nodeById[d.position]?.x || 0)
+                .attr("cy", d => nodeById[d.position]?.y || 0);
+        }
 
-function findNextStop(currentPosition) {
-    const unvisitedStopsArray = Array.from(unvisitedStops);
+        function updateVeloInfo() {
+            const infoContainer = d3.select("#velo-info-container");
+            infoContainer.selectAll(".velo-info")
+                .data(velos)
+                .join("div")
+                .attr("class", "velo-info")
+                .html(d => `
+                    <h4>${d.id}</h4>
+                    <p>Position actuelle: ${d.position}</p>
+                    <p>Autonomie restante: ${d.autonomie.toFixed(2)} km</p>
+                    <p>Charge actuelle: ${d.charge} kg</p>
+                    <p>Distance parcourue: ${d.distanceParcourue.toFixed(2)} km</p>
+                    <p>Feux rencontrés: ${d.feuxRencontres}</p>
+                `);
 
-    if (unvisitedStopsArray.length === 0) {
-        return null;
-    }
+            const completedToursContainer = d3.select("#completed-tours-container");
+            completedToursContainer.selectAll(".completed-tour-info")
+                .data(completedTours)
+                .join("div")
+                .attr("class", "completed-tour-info")
+                .html(d => `
+                    <h4>${d.id} - Tournée terminée</h4>
+                    <p>Distance parcourue: ${d.distanceParcourue.toFixed(2)} km</p>
+                    <p>Charge: ${d.charge} kg</p>
+                    <p>Feux rencontrés: ${d.feuxRencontres}</p>
+                    <p>Itinéraire: ${d.tournee.join(" -> ")}</p>
+                `);
+        }
 
-    const closestStop = unvisitedStopsArray.reduce((prev, curr) => {
-        const prevDist = heuristicCostEstimate(currentPosition, prev);
-        const currDist = heuristicCostEstimate(currentPosition, curr);
-        return (currDist < prevDist) ? curr : prev;
-    });
+        setInterval(updateVeloInfo, 2000); // Mettez à jour les infos des vélos toutes les 2 secondes
 
-    unvisitedStops.delete(closestStop);
-    return closestStop;
-}
-
-function updateMap() {
-    velo.attr("cx", d => nodeById[d.position]?.x || 0)
-        .attr("cy", d => nodeById[d.position]?.y || 0);
-
-
-}
-
-function updateVeloInfo() {
-    const infoContainer = d3.select("#velo-info-container");
-    infoContainer.selectAll(".velo-info")
-        .data(velos)
-        .join("div")
-        .attr("class", "velo-info")
-        .html(d => `
-            <h4>${d.id}</h4>
-            <p>Position actuelle: ${d.position}</p>
-            <p>Autonomie restante: ${d.autonomie.toFixed(2)} km</p>
-            <p>Charge actuelle: ${d.charge} kg</p>
-            <p>Distance parcourue: ${d.distanceParcourue.toFixed(2)} km</p>
-            <p>Feux rencontrés: ${d.feuxRencontres}</p>
-        `);
-
-    const completedToursContainer = d3.select("#completed-tours-container");
-    completedToursContainer.selectAll(".completed-tour-info")
-        .data(completedTours)
-        .join("div")
-        .attr("class", "completed-tour-info")
-        .html(d => `
-            <h4>${d.id} - Tournée terminée</h4>
-            <p>Distance parcourue: ${d.distanceParcourue.toFixed(2)} km</p>
-            <p>Charge: ${d.charge} kg</p>
-            <p>Feux rencontrés: ${d.feuxRencontres}</p>
-            <p>Itinéraire: ${d.tournee.join(" -> ")}</p>
-        `);
-}
-
-setInterval(updateVeloInfo, 2000); // Mettez à jour les infos des vélos toutes les 2 secondes
-
-setInterval(moveVelos, 2000);
-setInterval(simulateIncidents, 10000); // Simulate incidents every 10 seconds
+        setInterval(moveVelos, 2000);
+        setInterval(simulateIncidents, 10000); // Simulate incidents every 10 seconds
+    })
+    .catch(error => console.error('Error fetching velos data:', error));
