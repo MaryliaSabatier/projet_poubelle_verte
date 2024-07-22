@@ -9,8 +9,8 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role_id'] != 2) {  // 2 = ID du r
 
 // Connexion à la base de données (à adapter avec vos informations)
 $servername = "localhost";
-$username_db = "root";  // Ou votre nom d'utilisateur
-$password_db = "";    // Ou votre mot de passe
+$username_db = "root";
+$password_db = "";
 $dbname = "poubelle_verte";
 
 $conn = new mysqli($servername, $username_db, $password_db, $dbname);
@@ -71,7 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         // Préparation de la requête d'insertion
         $stmt = $conn->prepare("INSERT INTO utilisateurs (nom, prenom, email, mot_de_passe, role_id, date_embauche, disponibilite) VALUES (?, ?, ?, ?, ?, ?, ?)");
         // Utiliser $hashedPassword au lieu de $password en production
-        $stmt->bind_param("sssiss", $nom, $prenom, $email, $password, $roleId, $dateEmbauche, $disponibilite);
+        $stmt->bind_param("sssisss", $nom, $prenom, $email, $hashedPassword, $roleId, $dateEmbauche, $disponibilite);
 
         if ($stmt->execute()) {
             header('Location: gestion_utilisateurs_rh.php'); // Redirection après succès
@@ -122,7 +122,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     <?php } ?>
                 </select>
             </div>
-            <div id="cyclisteFields" style="display: none;"> 
+            <div id="cyclisteFields" style="display: none;">
                 <div class="mb-3">
                     <label for="date_embauche" class="form-label">Date d'embauche</label>
                     <input type="date" class="form-control" id="date_embauche" name="date_embauche" value="<?php echo $dateEmbauche; ?>">
@@ -142,13 +142,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         const roleSelect = document.getElementById('role');
         const cyclisteFields = document.getElementById('cyclisteFields');
 
-        roleSelect.addEventListener('change', function() {
-            if (this.value == 3) { // 3 = ID du rôle cycliste
+        function toggleCyclisteFields() {
+            if (roleSelect.value == 3) { // 3 = ID du rôle cycliste
                 cyclisteFields.style.display = 'block';
             } else {
                 cyclisteFields.style.display = 'none';
             }
-        });
+        }
+
+        roleSelect.addEventListener('change', toggleCyclisteFields);
+
+        // Appeler la fonction au chargement pour vérifier l'état initial
+        toggleCyclisteFields();
     </script>
 </body>
 </html>

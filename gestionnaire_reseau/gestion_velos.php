@@ -2,15 +2,15 @@
 session_start();
 
 // Vérification de la connexion et du rôle de gestionnaire de réseau
-if (!isset($_SESSION['user_id']) || $_SESSION['role_id'] != 4) { // 4 = ID du rôle gestionnaire de réseau
+if (!isset($_SESSION['user_id']) || $_SESSION['role_id'] != 4) {
     header('Location: ../login.php');
     exit();
 }
 
 // Connexion à la base de données (à adapter avec vos informations)
 $servername = "localhost";
-$username_db = "root";  // Ou votre nom d'utilisateur
-$password_db = "";    // Ou votre mot de passe
+$username_db = "root";
+$password_db = "";
 $dbname = "poubelle_verte";
 
 $conn = new mysqli($servername, $username_db, $password_db, $dbname);
@@ -18,55 +18,62 @@ if ($conn->connect_error) {
     die("La connexion a échoué : " . $conn->connect_error);
 }
 
-// Traitement du formulaire d'ajout de vélo
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $numero = $_POST['numero'];
-    $etat = $_POST['etat'];
-    $autonomie_km = $_POST['autonomie_km'];
-    $date_derniere_revision = $_POST['date_derniere_revision'];
-
-    $stmt = $conn->prepare("INSERT INTO velos (numero, etat, autonomie_km, date_derniere_revision) VALUES (?, ?, ?, ?)");
-    $stmt->bind_param("ssis", $numero, $etat, $autonomie_km, $date_derniere_revision);
-
-    if ($stmt->execute()) {
-        header('Location: gestion_velos.php'); // Redirection après ajout réussi
-        exit();
-    } else {
-        echo "Erreur lors de l'ajout du vélo.";
-    }
-}
+// Requête pour récupérer tous les vélos
+$sqlVelos = "SELECT id, numero, etat, autonomie_km, date_derniere_revision FROM velos";
+$resultVelos = $conn->query($sqlVelos);
 ?>
 
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Ajouter un vélo</title>
+    <title>Gestion des vélos</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <style>
+        .logout-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+        }
+    </style>
 </head>
 <body>
     <div class="container mt-5">
-        <h1 class="text-center mb-4">Ajouter un vélo</h1>
-        <a href="gestion_velos.php" class="btn btn-secondary mb-3">Retour à la gestion des vélos</a>
+        <h2>Gestion des vélos</h2>
+        <a href="../logout.php" class="btn btn-danger logout-btn">Déconnexion</a>
+        <a href="gestionnaire_reseau.php" class="btn btn-secondary mb-3">Retour au dashboard</a>
+        <a href="ajouter_velo.php" class="btn btn-primary mb-3">Ajouter un vélo</a>
 
-        <form method="post" action="ajouter_velo.php">
-            <div class="mb-3">
-                <label for="numero" class="form-label">Numéro</label>
-                <input type="text" class="form-control" id="numero" name="numero" required>
-            </div>
-            <div class="mb-3">
-                <label for="etat" class="form-label">État</label>
-                <input type="text" class="form-control" id="etat" name="etat" required>
-            </div>
-            <div class="mb-3">
-                <label for="autonomie_km" class="form-label">Autonomie (km)</label>
-                <input type="number" class="form-control" id="autonomie_km" name="autonomie_km" required>
-            </div>
-            <div class="mb-3">
-                <label for="date_derniere_revision" class="form-label">Date dernière révision</label>
-                <input type="date" class="form-control" id="date_derniere_revision" name="date_derniere_revision" required>
-            </div>
-            <button type="submit" class="btn btn-success">Ajouter</button>
-        </form>
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    <th>Numéro</th>
+                    <th>État</th>
+                    <th>Autonomie (km)</th>
+                    <th>Date de dernière révision</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php
+                if ($resultVelos->num_rows > 0) {
+                    while($velo = $resultVelos->fetch_assoc()) {
+                        echo "<tr>";
+                        echo "<td>" . $velo['numero'] . "</td>";
+                        echo "<td>" . $velo['etat'] . "</td>";
+                        echo "<td>" . $velo['autonomie_km'] . "</td>";
+                        echo "<td>" . $velo['date_derniere_revision'] . "</td>";
+                        echo "<td>
+                                <a href='modifier_velo.php?id=" . $velo['id'] . "' class='btn btn-warning btn-sm'>Modifier</a>
+                                <a href='supprimer_velo.php?id=" . $velo['id'] . "' class='btn btn-danger btn-sm' onclick='return confirm(\"Êtes-vous sûr de vouloir supprimer ce vélo ?\");'>Supprimer</a>
+                              </td>";
+                        echo "</tr>";
+                    }
+                } else {
+                    echo "<tr><td colspan='6' class='text-center'>Aucun vélo trouvé</td></tr>";
+                }
+                ?>
+            </tbody>
+        </table>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>

@@ -104,6 +104,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <textarea class="form-control" id="description" name="description"><?php echo $description; ?></textarea>
             </div>
             <button type="submit" class="btn btn-primary">Ajouter</button>
+            <a href="gestionnaire_reseau.php" class="btn btn-secondary">Retour au dashboard</a>
         </form>
     </div>
 </body>

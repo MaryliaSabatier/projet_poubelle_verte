@@ -82,6 +82,7 @@ $totalIncidents = $resultTotalIncidents->fetch_assoc()['total'];
                     <li class="nav-item">
                         <a class="nav-link" href="visualisation_points_passage.php">Visualisation des points de passage</a>
                     </li>
+
                 </ul>
             </div>
             <div class="col-md-9">
