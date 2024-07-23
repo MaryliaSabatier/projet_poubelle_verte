@@ -68,7 +68,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['attribuer_velo'])) {
                     <li class="nav-item">
                         <a class="nav-link active" href="gestion_tournees.php">Gestion des tournées</a>
                     </li>
-                    </ul>
+                    <li class="nav-item">
+                        <a class="nav-link" href="utilisateurs_velos.php">Utilisateurs avec vélos et tournées</a>
+                    </li>
+                </ul>
             </div>
             <div class="col-md-9">
                 <h2>Bienvenue, <?php echo $_SESSION['prenom']; ?>!</h2>
