@@ -1,4 +1,10 @@
-/* assets/css/styles.css */
+.leaflet-overlay-pane svg {
+    -webkit-user-select: none !important;  /* Safari, Chrome, Android */
+    -moz-user-select: none !important;     /* Firefox */
+    -ms-user-select: none !important;      /* Internet Explorer/Edge Legacy */
+    user-select: none !important;          /* Standard moderne */
+}
+
 html, body {
     height: 100%;
     margin: 0;
@@ -26,10 +32,10 @@ html, body {
 }
 
 #sidebar {
-    width: 25%; /* Ajustez selon vos besoins */
+    width: 25%;
     height: 100%;
     background-color: white;
-    border-left: 1px solid #ccc; /* Ajout d'une bordure gauche pour séparer */
+    border-left: 1px solid #ccc;
     box-sizing: border-box;
     padding: 10px;
     overflow-y: auto;
@@ -92,11 +98,7 @@ html, body {
 }
 
 /* Styles pour les rues */
-.link.Rue-Croix-Baragnon { stroke: red; }
-.link.Rue-des-Arts { stroke: blue; }
-/* Ajoutez les autres rues ici avec leurs styles respectifs */
 
-/* css rues */
 .link.Rue-Croix-Baragnon { stroke: red; }
 .link.Rue-des-Arts { stroke: blue; }
 .link.Rue-Pargaminières { stroke: green; }

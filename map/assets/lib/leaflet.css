@@ -99,9 +99,18 @@
 	     box-sizing: border-box;
 	z-index: 800;
 	}
+
+.leaflet-overlay-pane svg {
+    -webkit-user-select: none;  /* Safari, Chrome, Android */
+    -moz-user-select: none;     /* Firefox */
+    -ms-user-select: none;      /* Internet Explorer/Edge Legacy */
+    user-select: none;          /* Standard moderne */
+}
 /* workaround for https://bugzilla.mozilla.org/show_bug.cgi?id=888319 */
 .leaflet-overlay-pane svg {
-	-moz-user-select: none;
+	/*-moz-user-select: none; */
+	user-select: none;          /* Utilisez cette ligne pour les navigateurs modernes */
+
 	}
 
 .leaflet-pane         { z-index: 400; }

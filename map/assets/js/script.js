@@ -50,7 +50,7 @@ for (const rue in window.ruesEtArrets) { // Utiliser window.ruesEtArrets
                 target: existingNode,
                 distance: window.ruesEtArrets[rue].distances[i - 1],
                 trafficLights: window.ruesEtArrets[rue].trafficLights[i - 1],
-                street: rue.replace(/\s+/g, '-') // Ajouter le nom de la rue comme classe
+                street: rue.replace(/\s+/g, '-')
             });
         }
 
@@ -102,262 +102,83 @@ node.append("text")
     .attr("x", 6)
     .attr("y", 3);
 
-// Initialisation des vélos avec des données par défaut
-window.velos = [
-    { id: 1, numero: 'Velo 001', etat: 'operationnel', autonomie_km: 45, date_derniere_revision: '2024-01-01', position: "Porte d'Ivry", charge: 0, distanceParcourue: 0, feuxRencontres: 0, saison: "été", tournee: [] },
-    { id: 2, numero: 'Velo 002', etat: 'operationnel', autonomie_km: 50, date_derniere_revision: '2024-01-10', position: "Porte d'Ivry", charge: 0, distanceParcourue: 0, feuxRencontres: 0, saison: "été", tournee: [] }
-    // Ajoutez d'autres vélos ici
-];
-
-function initializeMapWithVelos() {
-    const velo = g.append("g")
-        .attr("class", "velos")
-        .selectAll("circle")
-        .data(window.velos) // Utiliser window.velos
-        .join("circle")
-        .attr("r", 7)
-        .attr("class", "velo")
-        .attr("cx", d => nodeById[d.position]?.x || 0)
-        .attr("cy", d => nodeById[d.position]?.y || 0);
-
-    const simulation = d3.forceSimulation(nodes)
-        .force("link", d3.forceLink(links).id(d => d.id).distance(80).strength(0.1))
-        .force("charge", d3.forceManyBody().strength(-50))
-        .force("center", d3.forceCenter(width / 2, height / 2))
-        .on("tick", ticked);
-
-    function ticked() {
-        link
-            .attr("x1", d => d.source.x)
-            .attr("y1", d => d.source.y)
-            .attr("x2", d => d.target.x)
-            .attr("y2", d => d.target.y);
-
-        node
-            .attr("transform", d => `translate(${d.x},${d.y})`);
-
-        velo
-            .attr("cx", d => nodeById[d.position]?.x || 0)
-            .attr("cy", d => nodeById[d.position]?.y || 0);
+/**
+ * Dijkstra's Algorithm to find the shortest path in the map
+ * @param {Object} graph - The graph containing nodes and links
+ * @param {String} startNode - The starting point for the pathfinding
+ * @returns {Object} - The shortest paths and distances from the startNode
+ */
+function dijkstra(graph, startNode) {
+    const distances = {};
+    const previousNodes = {};
+    const visitedNodes = new Set();
+    const unvisitedNodes = new Set(Object.keys(graph.nodes));
+    
+    // Initialize distances and previous nodes
+    for (const nodeId of unvisitedNodes) {
+        distances[nodeId] = Infinity;
+        previousNodes[nodeId] = null;
     }
-}
+    distances[startNode] = 0;
 
-// A* Algorithm to find the optimal path
-function aStarSearch(start, goal) {
-    const openSet = [start];
-    const cameFrom = {};
-    const gScore = {};
-    const fScore = {};
+    while (unvisitedNodes.size > 0) {
+        // Get the closest unvisited node
+        const currentNode = [...unvisitedNodes].reduce((closestNode, nodeId) => {
+            return distances[nodeId] < distances[closestNode] ? nodeId : closestNode;
+        }, [...unvisitedNodes][0]);
 
-    nodes.forEach(node => {
-        gScore[node.id] = Infinity;
-        fScore[node.id] = Infinity;
-    });
+        // Remove the node from unvisited set and mark as visited
+        unvisitedNodes.delete(currentNode);
+        visitedNodes.add(currentNode);
 
-    gScore[start] = 0;
-    fScore[start] = heuristicCostEstimate(start, goal);
-
-    while (openSet.length > 0) {
-        openSet.sort((a, b) => fScore[a] - fScore[b]);
-        const current = openSet.shift();
-
-        if (current === goal) {
-            return reconstructPath(cameFrom, current);
-        }
-
-        const neighbors = links.filter(link => link.source.id === current || link.target.id === current)
-            .map(link => link.source.id === current ? link.target.id : link.source.id);
-
-        neighbors.forEach(neighbor => {
-            const tentativeGScore = gScore[current] + getDistance(current, neighbor);
-            if (tentativeGScore < gScore[neighbor]) {
-                cameFrom[neighbor] = current;
-                gScore[neighbor] = tentativeGScore;
-                fScore[neighbor] = gScore[neighbor] + heuristicCostEstimate(neighbor, goal);
-                if (!openSet.includes(neighbor)) {
-                    openSet.push(neighbor);
-                }
-            }
-        });
-    }
-
-    return []; // No path found
-}
-
-function heuristicCostEstimate(start, goal) {
-    const dx = nodeById[start].x - nodeById[goal].x;
-    const dy = nodeById[start].y - nodeById[goal].y;
-    return Math.sqrt(dx * dx + dy * dy);
-}
-
-function getDistance(start, goal) {
-    const link = links.find(link => (link.source.id === start && link.target.id === goal) || (link.source.id === goal && link.target.id === start));
-    if (link) {
-        return link.distance + (link.trafficLights / 20); // 1 km every 20 traffic lights
-    }
-    return Infinity;
-}
-
-function reconstructPath(cameFrom, current) {
-    const totalPath = [current];
-    while (current in cameFrom) {
-        current = cameFrom[current];
-        totalPath.unshift(current);
-    }
-    return totalPath;
-}
-
-function simulateIncidents() {
-    const incidentTypes = ['arret_bloque', 'velo_en_panne'];
-    const incidentType = incidentTypes[Math.floor(Math.random() * incidentTypes.length)];
-
-    if (incidentType === 'arret_bloque') {
-        const randomNode = nodes[Math.floor(Math.random() * nodes.length)];
-        randomNode.isBlocked = true;
-        console.log(`Incident: arrêt bloqué à ${randomNode.id}`);
-    } else if (incidentType === 'velo_en_panne') {
-        const randomVelo = window.velos[Math.floor(Math.random() * window.velos.length)]; // Utiliser window.velos
-        randomVelo.isBroken = true;
-        console.log(`Incident: ${randomVelo.numero} est en panne`);
-    }
-
-    updateMap();
-    updateVeloInfo();
-}
-
-function moveVelos() {
-    for (const velo of window.velos) { // Utiliser window.velos
-        if (velo.isBroken) {
-            continue; // Skip broken bikes
-        }
-
-        let stopsCount = 0;
-
-        while (velo.autonomie_km > 0 && velo.charge < 200 && stopsCount < 4) {
-            const nextStop = findNextStop(velo.position);
-
-            if (!nextStop) {
-                break;
-            }
-
-            const path = aStarSearch(velo.position, nextStop);
-            for (let i = 1; i < path.length; i++) {
-                const currentStop = path[i - 1];
-                const nextStop = path[i];
-
-                const distance = getDistance(currentStop, nextStop);
-                const feux = links.find(link => (link.source.id === currentStop && link.target.id === nextStop) || (link.source.id === nextStop && link.target.id === currentStop)).trafficLights;
-
-                if (nodeById[nextStop].isBlocked) {
-                    console.log(`Arrêt ${nextStop} est bloqué, recherche d'un autre itinéraire.`);
-                    break;
-                }
-
-                velo.distanceParcourue += distance;
-                velo.autonomie_km -= distance;
-                velo.feuxRencontres += feux;
-                velo.charge += 50; // Suppose 50kg per stop
-                stopsCount++;
-
-                velo.position = nextStop;
-                velo.tournee.push(velo.position);
-
-                if (velo.autonomie_km <= 0 || velo.charge >= 200) {
-                    break;
+        // Update distances to neighboring nodes
+        for (const link of graph.links.filter(link => link.source.id === currentNode)) {
+            const neighbor = link.target.id;
+            if (!visitedNodes.has(neighbor)) {
+                const newDist = distances[currentNode] + link.distance;
+                if (newDist < distances[neighbor]) {
+                    distances[neighbor] = newDist;
+                    previousNodes[neighbor] = currentNode;
                 }
             }
         }
+    }
 
-        if (velo.autonomie_km <= 0 || velo.charge >= 200 || stopsCount === 4) {
-            console.log(`${velo.numero} doit retourner à la base pour recharger ou vider la charge.`);
-            // Enregistrer la tournée terminée
-            completedTours.push({
-                id: velo.id,
-                tournee: [...velo.tournee], // Clone de l'itinéraire
-                distanceParcourue: velo.distanceParcourue,
-                feuxRencontres: velo.feuxRencontres,
-                charge: velo.charge
-            });
+    return { distances, previousNodes };
+}
 
-            velo.position = "Porte d'Ivry";
-            velo.autonomie_km = 50; // Recharge
-            velo.distanceParcourue = 0;
-            velo.feuxRencontres = 0;
-            velo.charge = 0;
-            velo.tournee = [];
+/**
+ * Find the shortest path using Dijkstra's algorithm from the depot to all stops.
+ */
+function calculateShortestPaths() {
+    const graph = {
+        nodes: nodeById,
+        links: links
+    };
+    const depot = depotIvry.id;
+    const { distances, previousNodes } = dijkstra(graph, depot);
+    
+    console.log('Shortest distances from depot:', distances);
+    console.log('Previous nodes for path reconstruction:', previousNodes);
+    
+    // Example: Print shortest path to a specific stop (replace 'stopId' with an actual stop id)
+    function reconstructPath(stopId) {
+        const path = [];
+        let currentNode = stopId;
+        while (currentNode !== null) {
+            path.unshift(currentNode);
+            currentNode = previousNodes[currentNode];
+        }
+        return path;
+    }
+    
+    // Calculate and display paths to all stops
+    for (const stopId in distances) {
+        if (stopId !== depot) {
+            console.log(`Shortest path to ${stopId}:`, reconstructPath(stopId));
         }
     }
-
-    updateMap();
-    updateVeloInfo();
 }
 
-function findNextStop(currentPosition) {
-    const unvisitedStopsArray = Array.from(unvisitedStops);
-
-    if (unvisitedStopsArray.length === 0) {
-        return null;
-    }
-
-    const closestStop = unvisitedStopsArray.reduce((prev, curr) => {
-        const prevDist = heuristicCostEstimate(currentPosition, prev);
-        const currDist = heuristicCostEstimate(currentPosition, curr);
-        return (currDist < prevDist) ? curr : prev;
-    });
-
-    unvisitedStops.delete(closestStop);
-    return closestStop;
-}
-
-function updateMap() {
-    const velo = d3.selectAll(".velo");
-    velo.attr("cx", d => nodeById[d.position]?.x || 0)
-        .attr("cy", d => nodeById[d.position]?.y || 0);
-}
-
-function updateVeloInfo() {
-    const infoContainer = d3.select("#velo-info-container");
-    infoContainer.selectAll(".velo-info")
-        .data(window.velos) // Utiliser window.velos
-        .join("div")
-        .attr("class", "velo-info")
-        .html(d => {
-            // Vérifier que les propriétés existent et sont des nombres
-            const autonomie_km = d.autonomie_km !== undefined && !isNaN(d.autonomie_km) ? d.autonomie_km.toFixed(2) : "N/A";
-            const charge = d.charge !== undefined && !isNaN(d.charge) ? d.charge : "N/A";
-            const distanceParcourue = d.distanceParcourue !== undefined && !isNaN(d.distanceParcourue) ? d.distanceParcourue.toFixed(2) : "N/A";
-
-            return `
-                <h4>${d.numero}</h4>
-                <p>Position actuelle: ${d.position}</p>
-                <p>Autonomie restante: ${autonomie_km} km</p>
-                <p>Charge actuelle: ${charge} kg</p>
-                <p>Distance parcourue: ${distanceParcourue} km</p>
-                <p>Feux rencontrés: ${d.feuxRencontres !== undefined ? d.feuxRencontres : "N/A"}</p>
-            `;
-        });
-
-    const completedToursContainer = d3.select("#completed-tours-container");
-    completedToursContainer.selectAll(".completed-tour-info")
-        .data(completedTours)
-        .join("div")
-        .attr("class", "completed-tour-info")
-        .html(d => `
-            <h4>${d.id} - Tournée terminée</h4>
-            <p>Distance parcourue: ${d.distanceParcourue !== undefined && !isNaN(d.distanceParcourue) ? d.distanceParcourue.toFixed(2) : "N/A"} km</p>
-            <p>Charge: ${d.charge !== undefined && !isNaN(d.charge) ? d.charge : "N/A"} kg</p>
-            <p>Feux rencontrés: ${d.feuxRencontres !== undefined ? d.feuxRencontres : "N/A"}</p>
-            <p>Itinéraire: ${d.tournee.join(" -> ")}</p>
-        `);
-}
-
-// Initialiser la carte avec les vélos chargés
-initializeMapWithVelos();
-
-// Appelez updateVeloInfo pour mettre à jour les informations des vélos
-updateVeloInfo();
-
-// Intervalles pour mettre à jour les informations des vélos et simuler les mouvements et incidents
-setInterval(updateVeloInfo, 2000); // Mettez à jour les infos des vélos toutes les 2 secondes
-setInterval(moveVelos, 2000);
-setInterval(simulateIncidents, 10000); // Simulate incidents every 10 seconds
+// Call this function after setting up the nodes and links
+calculateShortestPaths();
