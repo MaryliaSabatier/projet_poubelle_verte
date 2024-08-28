@@ -1,4 +1,4 @@
-const ruesEtArrets = {
+window.ruesEtArrets = {
     "Rue Croix-Baragnon": {
         stops: [
             { name: "La Défense", lat: 48.8925, lon: 2.2369 },
@@ -628,4 +628,4 @@ const ruesEtArrets = {
     }
 };
 
-console.log("streets_data.js is loaded and data is:", { ruesEtArrets, velos });
+console.log("streets_data.js is loaded and data is:", { ruesEtArrets: window.ruesEtArrets, velos: window.velos });

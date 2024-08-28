@@ -18,9 +18,9 @@ nodeById["Porte d'Ivry"] = depotIvry;
 console.log("Initial nodes:", nodes);
 
 let y = padding;
-for (const rue in ruesEtArrets) {
+for (const rue in window.ruesEtArrets) { // Utiliser window.ruesEtArrets
     let x = padding;
-    const arrets = ruesEtArrets[rue].stops;
+    const arrets = window.ruesEtArrets[rue].stops;
     const xIncrement = (width - 2 * padding) / (arrets.length - 1);
 
     for (let i = 0; i < arrets.length; i++) {
@@ -30,7 +30,7 @@ for (const rue in ruesEtArrets) {
         if (!existingNode) {
             existingNode = { id: arret.name, type: "stop", x, y };
 
-            const ruesConnectees = Object.values(ruesEtArrets).filter(rue => rue.stops.some(s => s.name === arret.name));
+            const ruesConnectees = Object.values(window.ruesEtArrets).filter(rue => rue.stops.some(s => s.name === arret.name));
             if (ruesConnectees.length === 1) {
                 existingNode.isImpasse = true;
             }
@@ -48,8 +48,8 @@ for (const rue in ruesEtArrets) {
             links.push({
                 source: nodeById[arrets[i - 1].name],
                 target: existingNode,
-                distance: ruesEtArrets[rue].distances[i - 1],
-                trafficLights: ruesEtArrets[rue].trafficLights[i - 1],
+                distance: window.ruesEtArrets[rue].distances[i - 1],
+                trafficLights: window.ruesEtArrets[rue].trafficLights[i - 1],
                 street: rue.replace(/\s+/g, '-') // Ajouter le nom de la rue comme classe
             });
         }
@@ -102,45 +102,18 @@ node.append("text")
     .attr("x", 6)
     .attr("y", 3);
 
-// Fonction de conversion des vélos JSON en vélos utilisables
-function processVeloData(data) {
-    return data.map(velo => ({
-        ...velo,
-        position: "Porte d'Ivry", // Position par défaut
-        charge: 0, // Charge initiale
-        distanceParcourue: 0, // Distance parcourue initiale
-        feuxRencontres: 0, // Feux rencontrés initiale
-        saison: "été", // Saison par défaut
-        tournee: [] // Tournée initiale vide
-    }));
-}
-
-// Fetch the velos data from the server
-fetch('../map/get_velos.php')
-    .then(response => {
-        if (!response.ok) {
-            throw new Error('Network response was not ok ' + response.statusText);
-        }
-        return response.json();
-    })
-    .then(data => {
-        window.velos = processVeloData(data);
-
-        // Initialiser la carte avec les vélos chargés
-        initializeMapWithVelos();
-
-        // Appelez updateVeloInfo pour mettre à jour les informations des vélos
-        updateVeloInfo();
-
-        // Reste du code...
-    })
-    .catch(error => console.error('Error fetching velos data:', error));
+// Initialisation des vélos avec des données par défaut
+window.velos = [
+    { id: 1, numero: 'Velo 001', etat: 'operationnel', autonomie_km: 45, date_derniere_revision: '2024-01-01', position: "Porte d'Ivry", charge: 0, distanceParcourue: 0, feuxRencontres: 0, saison: "été", tournee: [] },
+    { id: 2, numero: 'Velo 002', etat: 'operationnel', autonomie_km: 50, date_derniere_revision: '2024-01-10', position: "Porte d'Ivry", charge: 0, distanceParcourue: 0, feuxRencontres: 0, saison: "été", tournee: [] }
+    // Ajoutez d'autres vélos ici
+];
 
 function initializeMapWithVelos() {
     const velo = g.append("g")
         .attr("class", "velos")
         .selectAll("circle")
-        .data(velos)
+        .data(window.velos) // Utiliser window.velos
         .join("circle")
         .attr("r", 7)
         .attr("class", "velo")
@@ -243,9 +216,9 @@ function simulateIncidents() {
         randomNode.isBlocked = true;
         console.log(`Incident: arrêt bloqué à ${randomNode.id}`);
     } else if (incidentType === 'velo_en_panne') {
-        const randomVelo = velos[Math.floor(Math.random() * velos.length)];
+        const randomVelo = window.velos[Math.floor(Math.random() * window.velos.length)]; // Utiliser window.velos
         randomVelo.isBroken = true;
-        console.log(`Incident: ${randomVelo.id} est en panne`);
+        console.log(`Incident: ${randomVelo.numero} est en panne`);
     }
 
     updateMap();
@@ -253,7 +226,7 @@ function simulateIncidents() {
 }
 
 function moveVelos() {
-    for (const velo of velos) {
+    for (const velo of window.velos) { // Utiliser window.velos
         if (velo.isBroken) {
             continue; // Skip broken bikes
         }
@@ -296,7 +269,7 @@ function moveVelos() {
         }
 
         if (velo.autonomie_km <= 0 || velo.charge >= 200 || stopsCount === 4) {
-            console.log(`${velo.id} doit retourner à la base pour recharger ou vider la charge.`);
+            console.log(`${velo.numero} doit retourner à la base pour recharger ou vider la charge.`);
             // Enregistrer la tournée terminée
             completedTours.push({
                 id: velo.id,
@@ -345,7 +318,7 @@ function updateMap() {
 function updateVeloInfo() {
     const infoContainer = d3.select("#velo-info-container");
     infoContainer.selectAll(".velo-info")
-        .data(velos)
+        .data(window.velos) // Utiliser window.velos
         .join("div")
         .attr("class", "velo-info")
         .html(d => {
@@ -355,7 +328,7 @@ function updateVeloInfo() {
             const distanceParcourue = d.distanceParcourue !== undefined && !isNaN(d.distanceParcourue) ? d.distanceParcourue.toFixed(2) : "N/A";
 
             return `
-                <h4>${d.id}</h4>
+                <h4>${d.numero}</h4>
                 <p>Position actuelle: ${d.position}</p>
                 <p>Autonomie restante: ${autonomie_km} km</p>
                 <p>Charge actuelle: ${charge} kg</p>
@@ -378,6 +351,13 @@ function updateVeloInfo() {
         `);
 }
 
+// Initialiser la carte avec les vélos chargés
+initializeMapWithVelos();
+
+// Appelez updateVeloInfo pour mettre à jour les informations des vélos
+updateVeloInfo();
+
+// Intervalles pour mettre à jour les informations des vélos et simuler les mouvements et incidents
 setInterval(updateVeloInfo, 2000); // Mettez à jour les infos des vélos toutes les 2 secondes
 setInterval(moveVelos, 2000);
 setInterval(simulateIncidents, 10000); // Simulate incidents every 10 seconds

@@ -11,7 +11,7 @@ $username_db = "root";
 $password_db = "";
 $dbname = "poubelle_verte";
 
-$conn = new mysqli($servername, $username_db, $username_db, $dbname);
+$conn = new mysqli($servername, $username_db, $password_db, $dbname);
 if ($conn->connect_error) {
     die("La connexion a échoué : " . $conn->connect_error);
 }
@@ -19,22 +19,30 @@ if ($conn->connect_error) {
 $tournees = $conn->query("SELECT id, nom FROM tournees");
 $velos = $conn->query("SELECT id, numero FROM velos WHERE etat = 'operationnel'");
 
+$error = ''; // Initialise la variable pour stocker les messages d'erreur
+
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $tourne_id = $_POST['tourne_id'];
     $velo_id = $_POST['velo_id'];
-    $depart = $_POST['depart'];
-    $destination = $_POST['destination'];
-    $distance = $_POST['distance'];
+    $depart = trim($_POST['depart']);
+    $destination = trim($_POST['destination']);
+    $distance = (float) $_POST['distance'];
 
-    $sql = "INSERT INTO trajets (tourne_id, velo_id, depart, destination, distance) VALUES (?, ?, ?, ?, ?)";
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param("iissd", $tourne_id, $velo_id, $depart, $destination, $distance);
-
-    if ($stmt->execute()) {
-        header('Location: gestionnaire_reseau.php');
-        exit();
+    // Validation des champs
+    if (empty($depart) || empty($destination) || $distance <= 0) {
+        $error = "Tous les champs sont obligatoires et la distance doit être positive.";
     } else {
-        $error = "Erreur lors de l'attribution du trajet : " . $stmt->error;
+        // Exécution de la requête préparée seulement si la validation est passée
+        $sql = "INSERT INTO trajets (tourne_id, velo_id, depart, destination, distance) VALUES (?, ?, ?, ?, ?)";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("iissd", $tourne_id, $velo_id, $depart, $destination, $distance);
+
+        if ($stmt->execute()) {
+            header('Location: gestionnaire_reseau.php');
+            exit();
+        } else {
+            $error = "Erreur lors de l'attribution du trajet : " . $stmt->error;
+        }
     }
 }
 ?>

@@ -19,19 +19,27 @@ if ($conn->connect_error) {
 $cyclistes = $conn->query("SELECT id, nom, prenom FROM utilisateurs WHERE role_id = 3");
 $velos = $conn->query("SELECT id, numero FROM velos WHERE etat = 'operationnel'");
 
+$error = ''; // Initialise la variable pour stocker les messages d'erreur
+
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $cycliste_id = $_POST['cycliste_id'];
-    $velo_id = $_POST['velo_id'];
+    $cycliste_id = (int) $_POST['cycliste_id'];
+    $velo_id = (int) $_POST['velo_id'];
 
-    $sql = "UPDATE utilisateurs SET velo_id = ? WHERE id = ?";
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param("ii", $velo_id, $cycliste_id);
-
-    if ($stmt->execute()) {
-        header('Location: gestionnaire_reseau.php');
-        exit();
+    // Validation des sélections
+    if ($cycliste_id <= 0 || $velo_id <= 0) {
+        $error = "Sélection non valide pour le cycliste ou le vélo.";
     } else {
-        $error = "Erreur lors de l'attribution du vélo : " . $stmt->error;
+        // Exécution de la requête préparée seulement si la validation est passée
+        $sql = "UPDATE utilisateurs SET velo_id = ? WHERE id = ?";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("ii", $velo_id, $cycliste_id);
+
+        if ($stmt->execute()) {
+            header('Location: gestionnaire_reseau.php');
+            exit();
+        } else {
+            $error = "Erreur lors de l'attribution du vélo : " . $stmt->error;
+        }
     }
 }
 ?>
