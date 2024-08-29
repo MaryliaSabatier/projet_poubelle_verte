@@ -1,25 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <title>Map pour la récupération des poubelles</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <link rel="stylesheet" href="assets/css/styles.css">
-        <script src="assets/lib/d3.v7.min.js"></script>
-        <script src="assets/lib/leaflet.js"></script>
-        <link rel="stylesheet" href="assets/lib/leaflet.css">
-    </head>
+<head>
+    <meta charset="UTF-8">
+    <title>Carte des Trajets pour Cyclistes</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="assets/css/styles.css" />
+</head>
 <body>
-    <div id="graph-container">
-        <div id="map"></div>
-        <div id="sidebar">
-            <h2>Informations sur les vélos</h2>
-            <div id="velo-info-container"></div>
-            <div id="completed-tours-container"></div>
-        </div>
-    </div>
-    
-    <!-- Charger streets_data.js avant script.js -->
+    <div id="map"></div>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
     <script src="assets/data/streets_data.js"></script>
     <script src="assets/js/script.js"></script>
 </body>

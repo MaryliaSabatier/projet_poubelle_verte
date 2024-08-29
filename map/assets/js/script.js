@@ -1,63 +1,61 @@
 console.log("Script.js is loaded");
 
+// Définir les vélos (exemple de structure)
+const velos = [
+    { id: "Velo1", position: "Porte d'Ivry", autonomie: 50, charge: 0, capacite: 200, distanceParcourue: 0, feuxRencontres: 0, isBroken: false, tournee: [] },
+    { id: "Velo2", position: "Porte d'Ivry", autonomie: 50, charge: 0, capacite: 200, distanceParcourue: 0, feuxRencontres: 0, isBroken: false, tournee: [] }
+];
+
 const nodes = [];
 const links = [];
 const nodeById = {};
 const completedTours = []; // Historique des tournées terminées
 const unvisitedStops = new Set(); // Ensemble des arrêts non visités
 
-const padding = 50;
 const width = window.innerWidth;
 const height = window.innerHeight;
-const streetSpacing = 50;
 
-const depotIvry = { id: "Porte d'Ivry", type: "depot" };
+const depotIvry = { id: "Porte d'Ivry", type: "depot", x: width / 2, y: height / 2 };
 nodes.push(depotIvry);
 nodeById["Porte d'Ivry"] = depotIvry;
 
 console.log("Initial nodes:", nodes);
 
-let y = padding;
-for (const rue in window.ruesEtArrets) { // Utiliser window.ruesEtArrets
-    let x = padding;
-    const arrets = window.ruesEtArrets[rue].stops;
-    const xIncrement = (width - 2 * padding) / (arrets.length - 1);
+for (const rue in ruesEtArrets) {
+    const arrets = ruesEtArrets[rue].stops;
 
     for (let i = 0; i < arrets.length; i++) {
         const arret = arrets[i];
 
+        if (!arret || !arret.name) {
+            console.error(`Nom d'arrêt invalide pour la rue ${rue} à l'indice ${i}.`);
+            continue; // Passer cette itération si l'arrêt est invalide
+        }
+
         let existingNode = nodeById[arret.name];
         if (!existingNode) {
-            existingNode = { id: arret.name, type: "stop", x, y };
+            existingNode = { id: arret.name, type: "stop", x: Math.random() * width, y: Math.random() * height };
 
-            const ruesConnectees = Object.values(window.ruesEtArrets).filter(rue => rue.stops.some(s => s.name === arret.name));
+            const ruesConnectees = Object.values(ruesEtArrets).filter(rue => rue.stops.some(s => s.name === arret.name));
             if (ruesConnectees.length === 1) {
                 existingNode.isImpasse = true;
             }
 
             nodes.push(existingNode);
             nodeById[arret.name] = existingNode;
-            unvisitedStops.add(arret.name); // Ajouter l'arrêt à l'ensemble des arrêts non visités
-        } else {
-            existingNode.x = (existingNode.x + x) / 2;
-            existingNode.y = (existingNode.y + y) / 2;
-            existingNode.type = "intersection";
+            unvisitedStops.add(arret.name);
         }
 
         if (i > 0) {
             links.push({
                 source: nodeById[arrets[i - 1].name],
                 target: existingNode,
-                distance: window.ruesEtArrets[rue].distances[i - 1],
-                trafficLights: window.ruesEtArrets[rue].trafficLights[i - 1],
+                distance: ruesEtArrets[rue].distances[i - 1],
+                trafficLights: ruesEtArrets[rue].trafficLights[i - 1] || 0,
                 street: rue.replace(/\s+/g, '-')
             });
         }
-
-        x += xIncrement;
     }
-
-    y += streetSpacing;
 }
 
 console.log("Nodes after processing:", nodes);
@@ -68,6 +66,9 @@ const svg = d3.select("#map").append("svg")
     .attr("height", height)
     .attr("viewBox", `0 0 ${width} ${height}`);
 
+const g = svg.append("g")
+    .attr("class", "everything");
+
 const zoom = d3.zoom()
     .scaleExtent([0.5, 5])
     .on("zoom", (event) => {
@@ -75,9 +76,6 @@ const zoom = d3.zoom()
     });
 
 svg.call(zoom);
-
-const g = svg.append("g")
-    .attr("class", "everything");
 
 const link = g.append("g")
     .attr("class", "links")
@@ -102,19 +100,48 @@ node.append("text")
     .attr("x", 6)
     .attr("y", 3);
 
-/**
- * Dijkstra's Algorithm to find the shortest path in the map
- * @param {Object} graph - The graph containing nodes and links
- * @param {String} startNode - The starting point for the pathfinding
- * @returns {Object} - The shortest paths and distances from the startNode
- */
+const simulation = d3.forceSimulation(nodes)
+    .force("link", d3.forceLink(links).id(d => d.id).distance(150)) // Ajuste la distance pour espacer les points
+    .force("charge", d3.forceManyBody().strength(-300)) // Force de répulsion plus forte pour éloigner les points
+    .force("center", d3.forceCenter(width / 2, height / 2))
+    .on("tick", ticked);
+
+function ticked() {
+    link
+        .attr("x1", d => d.source.x)
+        .attr("y1", d => d.source.y)
+        .attr("x2", d => d.target.x)
+        .attr("y2", d => d.target.y);
+
+    node
+        .attr("transform", d => `translate(${d.x},${d.y})`);
+
+    g.selectAll(".velo")
+        .attr("cx", d => nodeById[d.position]?.x || 0)
+        .attr("cy", d => nodeById[d.position]?.y || 0);
+}
+
+// Continuez avec le reste du code comme précédemment...
+
+
+const velo = g.append("g")
+    .attr("class", "velos")
+    .selectAll("circle")
+    .data(velos)
+    .join("circle")
+    .attr("r", 7)
+    .attr("class", "velo")
+    .attr("cx", d => nodeById[d.position]?.x || 0)
+    .attr("cy", d => nodeById[d.position]?.y || 0);
+
+// Algorithme de Dijkstra pour trouver le chemin le plus court
 function dijkstra(graph, startNode) {
     const distances = {};
     const previousNodes = {};
     const visitedNodes = new Set();
     const unvisitedNodes = new Set(Object.keys(graph.nodes));
     
-    // Initialize distances and previous nodes
+    // Initialiser les distances et les noeuds précédents
     for (const nodeId of unvisitedNodes) {
         distances[nodeId] = Infinity;
         previousNodes[nodeId] = null;
@@ -122,20 +149,20 @@ function dijkstra(graph, startNode) {
     distances[startNode] = 0;
 
     while (unvisitedNodes.size > 0) {
-        // Get the closest unvisited node
+        // Obtenir le noeud non visité le plus proche
         const currentNode = [...unvisitedNodes].reduce((closestNode, nodeId) => {
             return distances[nodeId] < distances[closestNode] ? nodeId : closestNode;
         }, [...unvisitedNodes][0]);
 
-        // Remove the node from unvisited set and mark as visited
+        // Supprimer le noeud de l'ensemble non visité et le marquer comme visité
         unvisitedNodes.delete(currentNode);
         visitedNodes.add(currentNode);
 
-        // Update distances to neighboring nodes
+        // Mettre à jour les distances des noeuds voisins
         for (const link of graph.links.filter(link => link.source.id === currentNode)) {
             const neighbor = link.target.id;
             if (!visitedNodes.has(neighbor)) {
-                const newDist = distances[currentNode] + link.distance;
+                const newDist = distances[currentNode] + link.distance + (link.trafficLights / 20); // Pénaliser les feux tricolores
                 if (newDist < distances[neighbor]) {
                     distances[neighbor] = newDist;
                     previousNodes[neighbor] = currentNode;
@@ -147,38 +174,204 @@ function dijkstra(graph, startNode) {
     return { distances, previousNodes };
 }
 
-/**
- * Find the shortest path using Dijkstra's algorithm from the depot to all stops.
- */
-function calculateShortestPaths() {
-    const graph = {
-        nodes: nodeById,
-        links: links
-    };
-    const depot = depotIvry.id;
-    const { distances, previousNodes } = dijkstra(graph, depot);
-    
-    console.log('Shortest distances from depot:', distances);
-    console.log('Previous nodes for path reconstruction:', previousNodes);
-    
-    // Example: Print shortest path to a specific stop (replace 'stopId' with an actual stop id)
-    function reconstructPath(stopId) {
-        const path = [];
-        let currentNode = stopId;
-        while (currentNode !== null) {
-            path.unshift(currentNode);
-            currentNode = previousNodes[currentNode];
+// Fonction pour centrer la carte initialement
+const initialTransform = d3.zoomIdentity
+    .translate(width / 3, height / 3)
+    .scale(0.8);
+
+svg.call(zoom.transform, initialTransform);
+
+// Calcul des itinéraires optimisés
+function calculateRoutesForVelos() {
+    for (const velo of velos) {
+        while (velo.autonomie > 0 && velo.charge < velo.capacite && unvisitedStops.size > 0) {
+            const nextStop = findNextStop(velo.position);
+
+            if (!nextStop) {
+                break;
+            }
+
+            const graph = {
+                nodes: nodeById,
+                links: links
+            };
+            const { distances, previousNodes } = dijkstra(graph, velo.position);
+            const path = reconstructPath(previousNodes, nextStop);
+
+            for (let i = 1; i < path.length; i++) {
+                const currentStop = path[i - 1];
+                const nextStop = path[i];
+
+                const link = links.find(link => 
+                    (link.source.id === currentStop && link.target.id === nextStop) || 
+                    (link.source.id === nextStop && link.target.id === currentStop)
+                );
+
+                if (!link) {
+                    console.error(`Aucun lien trouvé entre ${currentStop} et ${nextStop}.`);
+                    continue; // Passer à l'itération suivante si aucun lien n'est trouvé
+                }
+
+                const distance = link.distance;
+                const feux = link.trafficLights || 0; // Utiliser 0 si trafficLights n'est pas défini
+
+                if (nodeById[nextStop].isBlocked) {
+                    console.log(`Arrêt ${nextStop} est bloqué, recherche d'un autre itinéraire.`);
+                    break;
+                }
+
+                velo.distanceParcourue += distance;
+                velo.autonomie -= distance + (feux / 20); // Diminuer l'autonomie en fonction des feux tricolores
+                velo.feuxRencontres += feux;
+                velo.charge += 50; // Suppose 50kg par arrêt
+                velo.position = nextStop;
+                velo.tournee.push(velo.position);
+
+                if (velo.autonomie <= 0 || velo.charge >= velo.capacite) {
+                    break;
+                }
+            }
+
+            if (velo.autonomie <= 0 || velo.charge >= velo.capacite) {
+                console.log(`${velo.id} doit retourner à la base pour recharger ou vider la charge.`);
+                completedTours.push({
+                    id: velo.id,
+                    tournee: [...velo.tournee], // Cloner l'itinéraire
+                    distanceParcourue: velo.distanceParcourue,
+                    feuxRencontres: velo.feuxRencontres,
+                    charge: velo.charge
+                });
+
+                velo.position = "Porte d'Ivry";
+                velo.autonomie = 50; // Recharge
+                velo.distanceParcourue = 0;
+                velo.feuxRencontres = 0;
+                velo.charge = 0;
+                velo.tournee = [];
+            }
         }
-        return path;
     }
-    
-    // Calculate and display paths to all stops
-    for (const stopId in distances) {
-        if (stopId !== depot) {
-            console.log(`Shortest path to ${stopId}:`, reconstructPath(stopId));
-        }
-    }
+
+    updateMap();
+    updateVeloInfo();
 }
 
-// Call this function after setting up the nodes and links
-calculateShortestPaths();
+function findNextStop(currentPosition) {
+    const unvisitedStopsArray = Array.from(unvisitedStops);
+
+    if (unvisitedStopsArray.length === 0 || !currentPosition) {
+        return null;
+    }
+
+    const closestStop = unvisitedStopsArray.reduce((prev, curr) => {
+        const prevDist = heuristicCostEstimate(currentPosition, prev);
+        const currDist = heuristicCostEstimate(currentPosition, curr);
+        return (currDist < prevDist) ? curr : prev;
+    });
+
+    unvisitedStops.delete(closestStop);
+    return closestStop;
+}
+
+function heuristicCostEstimate(start, goal) {
+    const dx = nodeById[start].x - nodeById[goal].x;
+    const dy = nodeById[start].y - nodeById[goal].y;
+    return Math.sqrt(dx * dx + dy * dy);
+}
+
+function getDistance(start, goal) {
+    const link = links.find(link => (link.source.id === start && link.target.id === goal) || (link.source.id === goal && link.target.id === start));
+    if (link) {
+        return link.distance + (link.trafficLights / 20); // 1 km tous les 20 feux tricolores
+    }
+    return Infinity;
+}
+
+function reconstructPath(cameFrom, current) {
+    const totalPath = [];
+
+    while (current) {
+        totalPath.unshift(current);
+        current = cameFrom[current];
+    }
+
+    return totalPath;
+}
+
+// Simulation des incidents
+function simulateIncidents() {
+    const incidentTypes = ['arret_bloque', 'velo_en_panne'];
+    const incidentType = incidentTypes[Math.floor(Math.random() * incidentTypes.length)];
+
+    if (incidentType === 'arret_bloque') {
+        const randomNode = nodes[Math.floor(Math.random() * nodes.length)];
+        randomNode.isBlocked = true;
+        console.log(`Incident: arrêt bloqué à ${randomNode.id}`);
+    } else if (incidentType === 'velo_en_panne') {
+        const randomVelo = velos[Math.floor(Math.random() * velos.length)];
+        randomVelo.isBroken = true;
+        console.log(`Incident: ${randomVelo.id} est en panne`);
+    }
+
+    updateMap();
+    updateVeloInfo();
+}
+
+function updateMap() {
+    velo.attr("cx", d => nodeById[d.position]?.x || 0)
+        .attr("cy", d => nodeById[d.position]?.y || 0);
+
+    const tourneePath = g.selectAll(".tournee")
+        .data(velos)
+        .join("path")
+        .attr("class", "tournee")
+        .attr("d", d => d3.line()
+            .x(stop => nodeById[stop]?.x || 0)
+            .y(stop => nodeById[stop]?.y || 0)
+            .curve(d3.curveBasis)(d.tournee)
+        );
+
+    const completedTourPath = g.selectAll(".completed-tour")
+        .data(completedTours)
+        .join("path")
+        .attr("class", "completed-tour")
+        .attr("d", d => d3.line()
+            .x(stop => nodeById[stop]?.x || 0)
+            .y(stop => nodeById[stop]?.y || 0)
+            .curve(d3.curveBasis)(d.tournee)
+        );
+}
+
+function updateVeloInfo() {
+    const infoContainer = d3.select("#velo-info-container");
+    infoContainer.selectAll(".velo-info")
+        .data(velos)
+        .join("div")
+        .attr("class", "velo-info")
+        .html(d => `
+            <h4>${d.id}</h4>
+            <p>Position actuelle: ${d.position}</p>
+            <p>Autonomie restante: ${d.autonomie.toFixed(2)} km</p>
+            <p>Charge actuelle: ${d.charge} kg</p>
+            <p>Distance parcourue: ${d.distanceParcourue.toFixed(2)} km</p>
+            <p>Feux rencontrés: ${d.feuxRencontres}</p>
+        `);
+
+    const completedToursContainer = d3.select("#completed-tours-container");
+    completedToursContainer.selectAll(".completed-tour-info")
+        .data(completedTours)
+        .join("div")
+        .attr("class", "completed-tour-info")
+        .html(d => `
+            <h4>${d.id} - Tournée terminée</h4>
+            <p>Distance parcourue: ${d.distanceParcourue.toFixed(2)} km</p>
+            <p>Charge: ${d.charge} kg</p>
+            <p>Feux rencontrés: ${d.feuxRencontres}</p>
+            <p>Itinéraire: ${d.tournee.join(" -> ")}</p>
+        `);
+}
+
+setInterval(updateVeloInfo, 2000); // Mettre à jour les infos des vélos toutes les 2 secondes
+setInterval(calculateRoutesForVelos, 2000); // Calculer les itinéraires toutes les 2 secondes
+setInterval(simulateIncidents, 10000); // Simuler des incidents toutes les 10 secondes
+""

@@ -20,11 +20,9 @@
 .leaflet-tile,
 .leaflet-marker-icon,
 .leaflet-marker-shadow {
-	-webkit-user-select: none;
-	   -moz-user-select: none;
-	        user-select: none;
-	  -webkit-user-drag: none;
-	}
+    -webkit-user-drag: none;  /* Spécifique à WebKit, pour Safari et Chrome */
+    user-drag: none;          /* Propriété standard, mais pas largement supportée */
+}
 /* Prevents IE11 from highlighting tiles in blue */
 .leaflet-tile::selection {
 	background: transparent;
@@ -99,18 +97,12 @@
 	     box-sizing: border-box;
 	z-index: 800;
 	}
-
-.leaflet-overlay-pane svg {
-    -webkit-user-select: none;  /* Safari, Chrome, Android */
-    -moz-user-select: none;     /* Firefox */
-    -ms-user-select: none;      /* Internet Explorer/Edge Legacy */
-    user-select: none;          /* Standard moderne */
-}
 /* workaround for https://bugzilla.mozilla.org/show_bug.cgi?id=888319 */
 .leaflet-overlay-pane svg {
-	/*-moz-user-select: none; */
-	user-select: none;          /* Utilisez cette ligne pour les navigateurs modernes */
-
+    -webkit-user-select: none; /* Safari 3+, Chrome, Android */
+    -moz-user-select: none;    /* Firefox */
+    -ms-user-select: none;     /* Internet Explorer/Edge Legacy */
+    user-select: none;         /* Standard moderne */
 	}
 
 .leaflet-pane         { z-index: 400; }
@@ -555,8 +547,10 @@ svg.leaflet-image-layer.leaflet-interactive path {
 	}
 
 .leaflet-oldie .leaflet-popup-content-wrapper {
-	-ms-zoom: 1;
-	}
+    -ms-zoom: 1; /* Propriété spécifique à IE */
+    zoom: 1;     /* Propriété standard pour les navigateurs modernes */
+}
+
 .leaflet-oldie .leaflet-popup-tip {
 	width: 24px;
 	margin: 0 auto;

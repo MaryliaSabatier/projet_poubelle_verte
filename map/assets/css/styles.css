@@ -12,6 +12,7 @@ html, body {
     display: flex;
     justify-content: center;
     align-items: center;
+    overflow: hidden; /* Empêche le défilement de la page */
 }
 
 #graph-container {
@@ -25,10 +26,11 @@ html, body {
 #map {
     flex: 1;
     background-color: #f0f0f0;
-    height: 100%;
-    width: 75%; /* Ajustez pour donner de la place à la sidebar */
     margin: 0;
     padding: 0;
+    border: 1px solid red;
+    height: 100vh;
+    width: 100%;
 }
 
 #sidebar {
@@ -60,10 +62,14 @@ html, body {
 /* Styles des éléments sur la carte */
 .nodes circle {
     fill: #3498db;
+    stroke: #000;
+    stroke-width: 1.5px;
 }
 
 .nodes .depot {
     fill: #e74c3c;
+    stroke: #000;
+    stroke-width: 2px;
 }
 
 .nodes .label {
@@ -72,16 +78,18 @@ html, body {
 }
 
 .links line {
-    stroke: #ccc;
-    stroke-width: 2px;
+    stroke: #999;
+    stroke-opacity: 0.6;
 }
 
 .links .link {
-    stroke: #ddd;
+    stroke: #ddd; /* Gris encore plus clair pour les liens */
 }
 
 .velos circle {
     fill: #2ecc71;
+    stroke: #000;
+    stroke-width: 1.5px;
 }
 
 .tournee {
