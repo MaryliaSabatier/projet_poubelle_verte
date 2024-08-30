@@ -41,6 +41,7 @@ $resultVelos = $conn->query($sqlVelos);
         <h2>Gestion des vélos</h2>
         <a href="../logout.php" class="btn btn-danger logout-btn">Déconnexion</a>
         <a href="gestionnaire_reseau.php" class="btn btn-secondary mb-3">Retour au dashboard</a>
+        <a href="gestion_tournees.php" class="btn btn-info mb-3">Gestion des tournées</a>
         <a href="ajouter_velo.php" class="btn btn-primary mb-3">Ajouter un vélo</a>
 
         <table class="table table-bordered">

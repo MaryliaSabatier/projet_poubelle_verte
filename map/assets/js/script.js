@@ -1,9 +1,11 @@
 console.log("Script.js is loaded");
 
+const WINTER_MODE = true; // Active ou désactive le mode hiver
+
 // Définir les vélos (exemple de structure)
 const velos = [
-    { id: "Velo1", position: "Porte d'Ivry", autonomie: 50, charge: 0, capacite: 200, distanceParcourue: 0, feuxRencontres: 0, isBroken: false, tournee: [] },
-    { id: "Velo2", position: "Porte d'Ivry", autonomie: 50, charge: 0, capacite: 200, distanceParcourue: 0, feuxRencontres: 0, isBroken: false, tournee: [] }
+    { id: "Velo1", position: "Porte d'Ivry", autonomie: WINTER_MODE ? 45 : 50, charge: 0, capacite: 200, distanceParcourue: 0, feuxRencontres: 0, isBroken: false, tournee: [] },
+    { id: "Velo2", position: "Porte d'Ivry", autonomie: WINTER_MODE ? 45 : 50, charge: 0, capacite: 200, distanceParcourue: 0, feuxRencontres: 0, isBroken: false, tournee: [] }
 ];
 
 const nodes = [];
@@ -29,7 +31,7 @@ for (const rue in ruesEtArrets) {
 
         if (!arret || !arret.name) {
             console.error(`Nom d'arrêt invalide pour la rue ${rue} à l'indice ${i}.`);
-            continue; // Passer cette itération si l'arrêt est invalide
+            continue;
         }
 
         let existingNode = nodeById[arret.name];
@@ -101,8 +103,8 @@ node.append("text")
     .attr("y", 3);
 
 const simulation = d3.forceSimulation(nodes)
-    .force("link", d3.forceLink(links).id(d => d.id).distance(150)) // Ajuste la distance pour espacer les points
-    .force("charge", d3.forceManyBody().strength(-300)) // Force de répulsion plus forte pour éloigner les points
+    .force("link", d3.forceLink(links).id(d => d.id).distance(150))
+    .force("charge", d3.forceManyBody().strength(-300))
     .force("center", d3.forceCenter(width / 2, height / 2))
     .on("tick", ticked);
 
@@ -121,9 +123,6 @@ function ticked() {
         .attr("cy", d => nodeById[d.position]?.y || 0);
 }
 
-// Continuez avec le reste du code comme précédemment...
-
-
 const velo = g.append("g")
     .attr("class", "velos")
     .selectAll("circle")
@@ -134,14 +133,12 @@ const velo = g.append("g")
     .attr("cx", d => nodeById[d.position]?.x || 0)
     .attr("cy", d => nodeById[d.position]?.y || 0);
 
-// Algorithme de Dijkstra pour trouver le chemin le plus court
 function dijkstra(graph, startNode) {
     const distances = {};
     const previousNodes = {};
     const visitedNodes = new Set();
     const unvisitedNodes = new Set(Object.keys(graph.nodes));
     
-    // Initialiser les distances et les noeuds précédents
     for (const nodeId of unvisitedNodes) {
         distances[nodeId] = Infinity;
         previousNodes[nodeId] = null;
@@ -149,16 +146,13 @@ function dijkstra(graph, startNode) {
     distances[startNode] = 0;
 
     while (unvisitedNodes.size > 0) {
-        // Obtenir le noeud non visité le plus proche
         const currentNode = [...unvisitedNodes].reduce((closestNode, nodeId) => {
             return distances[nodeId] < distances[closestNode] ? nodeId : closestNode;
         }, [...unvisitedNodes][0]);
 
-        // Supprimer le noeud de l'ensemble non visité et le marquer comme visité
         unvisitedNodes.delete(currentNode);
         visitedNodes.add(currentNode);
 
-        // Mettre à jour les distances des noeuds voisins
         for (const link of graph.links.filter(link => link.source.id === currentNode)) {
             const neighbor = link.target.id;
             if (!visitedNodes.has(neighbor)) {
@@ -174,14 +168,12 @@ function dijkstra(graph, startNode) {
     return { distances, previousNodes };
 }
 
-// Fonction pour centrer la carte initialement
 const initialTransform = d3.zoomIdentity
     .translate(width / 3, height / 3)
     .scale(0.8);
 
 svg.call(zoom.transform, initialTransform);
 
-// Calcul des itinéraires optimisés
 function calculateRoutesForVelos() {
     for (const velo of velos) {
         while (velo.autonomie > 0 && velo.charge < velo.capacite && unvisitedStops.size > 0) {
@@ -209,11 +201,11 @@ function calculateRoutesForVelos() {
 
                 if (!link) {
                     console.error(`Aucun lien trouvé entre ${currentStop} et ${nextStop}.`);
-                    continue; // Passer à l'itération suivante si aucun lien n'est trouvé
+                    continue;
                 }
 
                 const distance = link.distance;
-                const feux = link.trafficLights || 0; // Utiliser 0 si trafficLights n'est pas défini
+                const feux = link.trafficLights || 0;
 
                 if (nodeById[nextStop].isBlocked) {
                     console.log(`Arrêt ${nextStop} est bloqué, recherche d'un autre itinéraire.`);
@@ -243,7 +235,7 @@ function calculateRoutesForVelos() {
                 });
 
                 velo.position = "Porte d'Ivry";
-                velo.autonomie = 50; // Recharge
+                velo.autonomie = WINTER_MODE ? 45 : 50; // Recharge
                 velo.distanceParcourue = 0;
                 velo.feuxRencontres = 0;
                 velo.charge = 0;
@@ -298,7 +290,6 @@ function reconstructPath(cameFrom, current) {
     return totalPath;
 }
 
-// Simulation des incidents
 function simulateIncidents() {
     const incidentTypes = ['arret_bloque', 'velo_en_panne'];
     const incidentType = incidentTypes[Math.floor(Math.random() * incidentTypes.length)];
@@ -371,7 +362,6 @@ function updateVeloInfo() {
         `);
 }
 
-setInterval(updateVeloInfo, 2000); // Mettre à jour les infos des vélos toutes les 2 secondes
-setInterval(calculateRoutesForVelos, 2000); // Calculer les itinéraires toutes les 2 secondes
-setInterval(simulateIncidents, 10000); // Simuler des incidents toutes les 10 secondes
-""
+setInterval(updateVeloInfo, 2000);
+setInterval(calculateRoutesForVelos, 2000);
+setInterval(simulateIncidents, 10000);

@@ -116,6 +116,16 @@ CREATE TABLE etat_arrets (
     FOREIGN KEY (tournee_id) REFERENCES tournees(id)
 );
 
+CREATE TABLE tournees_cyclistes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    tournee_id INT NOT NULL,
+    cycliste_id INT NOT NULL,
+    velo_id INT NOT NULL,
+    FOREIGN KEY (tournee_id) REFERENCES tournees(id) ON DELETE CASCADE,
+    FOREIGN KEY (cycliste_id) REFERENCES utilisateurs(id) ON DELETE CASCADE
+);
+
+
 -- Creation admin
 INSERT INTO utilisateurs (nom, prenom, email, mot_de_passe, role_id)
 VALUES ('AdminPoubelleVerte', 'Admin', 'admin@poubelleverte.com', PASSWORD('123456789'), 1); 
