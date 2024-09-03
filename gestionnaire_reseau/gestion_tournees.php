@@ -71,7 +71,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['launch_tournee'])) {
     $stmt->bind_param("i", $tourneeId);
     $stmt->execute();
 
-    echo "<div class='alert alert-success'>Tournée lancée avec succès.</div>";
+    // Rediriger vers index.html pour afficher la carte
+    header("Location: index.html?tournee_id=$tourneeId");
+    exit();
 }
 
 // Traitement pour supprimer une tournée et remettre les cyclistes et les vélos disponibles
