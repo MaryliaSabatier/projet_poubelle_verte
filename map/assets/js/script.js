@@ -2,10 +2,9 @@ console.log("Script.js is loaded");
 
 const WINTER_MODE = true; // Active ou désactive le mode hiver
 
-// Définir les vélos (exemple de structure)
 const velos = [
-    { id: "Velo1", position: "Porte d'Ivry", autonomie: WINTER_MODE ? 45 : 50, charge: 0, capacite: 200, distanceParcourue: 0, feuxRencontres: 0, isBroken: false, tournee: [], currentLink: null, progress: 0, assignedStops: new Set() },
-    { id: "Velo2", position: "Porte d'Ivry", autonomie: WINTER_MODE ? 45 : 50, charge: 0, capacite: 200, distanceParcourue: 0, feuxRencontres: 0, isBroken: false, tournee: [], currentLink: null, progress: 0, assignedStops: new Set() }
+    { id: "Velo1", position: "Porte d'Ivry", autonomie: WINTER_MODE ? 45 : 50, charge: 0, capacite: 200, distanceParcourue: 0, feuxRencontres: 0, isBroken: false, currentLink: null, tournee: [], assignedStops: new Set(), isMoving: false },
+    { id: "Velo2", position: "Porte d'Ivry", autonomie: WINTER_MODE ? 45 : 50, charge: 0, capacite: 200, distanceParcourue: 0, feuxRencontres: 0, isBroken: false, currentLink: null, tournee: [], assignedStops: new Set(), isMoving: false }
 ];
 
 const nodes = [];
@@ -26,6 +25,12 @@ nodeById["Porte d'Ivry"] = depotIvry;
 
 console.log("Initial nodes:", nodes);
 
+// Définir la projection Mercator
+const projection = d3.geoMercator()
+    .center([2.3522, 48.8566]) // Centrer sur Paris
+    .scale(150000) // Ajustez l'échelle selon vos besoins
+    .translate([width / 2, height / 2]); // Centrer la projection
+
 for (const rue in ruesEtArrets) {
     const arrets = ruesEtArrets[rue].stops;
 
@@ -39,7 +44,10 @@ for (const rue in ruesEtArrets) {
 
         let existingNode = nodeById[arret.name];
         if (!existingNode) {
-            existingNode = { id: arret.name, type: "stop", x: Math.random() * width, y: Math.random() * height };
+            // Utiliser la projection pour obtenir les coordonnées x et y
+            const [x, y] = projection([arret.lon, arret.lat]);
+
+            existingNode = { id: arret.name, type: "stop", x: x, y: y };
 
             const ruesConnectees = Object.values(ruesEtArrets).filter(rue => rue.stops.some(s => s.name === arret.name));
             if (ruesConnectees.length === 1) {
@@ -75,12 +83,10 @@ const g = svg.append("g")
     .attr("class", "everything");
 
 const zoom = d3.zoom()
-    .scaleExtent([0.5, 5])
+    .scaleExtent([0.2, 5]) // Autoriser un zoom minimum et maximum
     .on("zoom", (event) => {
-        g.attr("transform", event.transform);
+        g.attr("transform", event.transform); // Permettre le zoom et le déplacement
     });
-
-svg.call(zoom);
 
 const link = g.append("g")
     .attr("class", "links")
@@ -88,6 +94,7 @@ const link = g.append("g")
     .data(links)
     .join("line")
     .attr("class", d => `link ${d.street}`);
+console.log("Liens entre arrêts :", links);
 
 const node = g.append("g")
     .attr("class", "nodes")
@@ -126,33 +133,33 @@ function ticked() {
         .attr("cy", d => nodeById[d.position]?.y || 0);
 }
 
-// Création des éléments pour les vélos
 const velo = g.append("g")
     .attr("class", "velos")
     .selectAll("g")
     .data(velos)
     .join("g")
-    .attr("class", "velo");
+    .attr("class", "velo")
+    .attr("id", d => d.id); // Ajouter un identifiant unique basé sur l'id du vélo
 
-// Ajout des cercles pour les vélos
+// Création des éléments pour les vélos
 velo.append("circle")
-    .attr("r", 10) // Cercle plus grand pour représenter les vélos
-    .attr("cx", d => nodeById[d.position]?.x || 0)
-    .attr("cy", d => nodeById[d.position]?.y || 0);
+    .attr("r", 20) // Cercle plus grand pour représenter les vélos
+    .attr("cx", d => nodeById["Porte d'Ivry"].x)  // Utiliser la position de Porte d'Ivry pour tous les vélos au départ
+    .attr("cy", d => nodeById["Porte d'Ivry"].y);
 
-// Ajout des textes pour les noms des vélos
 velo.append("text")
     .attr("x", d => (nodeById[d.position]?.x || 0) + 12) // Décale le texte à droite du cercle
     .attr("y", d => nodeById[d.position]?.y || 0)
     .attr("dy", ".35em")
     .text(d => d.id);
 
+// Fonction de calcul de Dijkstra pour trouver le chemin le plus court
 function dijkstra(graph, startNode) {
     const distances = {};
     const previousNodes = {};
-    const visitedNodes = new Set();
     const unvisitedNodes = new Set(Object.keys(graph.nodes));
-    
+
+    // Initialisation des distances
     for (const nodeId of unvisitedNodes) {
         distances[nodeId] = Infinity;
         previousNodes[nodeId] = null;
@@ -165,16 +172,14 @@ function dijkstra(graph, startNode) {
         }, [...unvisitedNodes][0]);
 
         unvisitedNodes.delete(currentNode);
-        visitedNodes.add(currentNode);
 
+        // Parcourir les voisins de l'actuel
         for (const link of graph.links.filter(link => link.source.id === currentNode)) {
             const neighbor = link.target.id;
-            if (!visitedNodes.has(neighbor)) {
-                const newDist = distances[currentNode] + link.distance + (link.trafficLights / 20); // Pénaliser les feux tricolores
-                if (newDist < distances[neighbor]) {
-                    distances[neighbor] = newDist;
-                    previousNodes[neighbor] = currentNode;
-                }
+            const newDist = distances[currentNode] + link.distance + (link.trafficLights / 20);
+            if (newDist < distances[neighbor]) {
+                distances[neighbor] = newDist;
+                previousNodes[neighbor] = currentNode;
             }
         }
     }
@@ -182,136 +187,159 @@ function dijkstra(graph, startNode) {
     return { distances, previousNodes };
 }
 
+// Correction dans `getNextStopFromTournee` :
+function getNextStopFromTournee(velo) {
+    // Vérifiez d'abord si assignedStops existe et est itérable
+    if (!velo.assignedStops || !(velo.assignedStops instanceof Set) || velo.assignedStops.size === 0) {
+        console.log(`${velo.id} n'a pas d'arrêts assignés ou la collection n'est pas valide.`);
+        return null;
+    }
+    
+    const stopsArray = Array.from(velo.assignedStops);
+    
+    if (stopsArray.length === 0) {
+        console.log(`${velo.id} n'a pas d'arrêts à visiter.`);
+        return null;
+    }
+    
+    return stopsArray[0]; // Prendre le premier arrêt dans la liste
+}
+
 function divideStopsAmongVelos() {
     const stopArray = Array.from(unvisitedStops);
+    if (!stopArray || stopArray.length === 0) {
+        console.log("Aucun arrêt non visité.");
+        return;
+    }
+
     const stopsPerVelo = Math.ceil(stopArray.length / velos.length);
 
     velos.forEach((velo, index) => {
         const start = index * stopsPerVelo;
         const end = start + stopsPerVelo;
         const assignedStops = stopArray.slice(start, end);
-        
-        // Assignez ces arrêts au vélo
-        assignedStops.forEach(stop => velo.assignedStops.add(stop));
+
+        // Assurez-vous que velo.assignedStops est bien un Set
+        if (!(velo.assignedStops instanceof Set)) {
+            velo.assignedStops = new Set();
+        }
+
+        assignedStops.forEach(stop => {
+            velo.assignedStops.add(stop);
+        });
     });
 }
 
+
 divideStopsAmongVelos();
 
+
+// Définir initialTransform pour dézoomer la carte au chargement
 const initialTransform = d3.zoomIdentity
     .translate(width / 2, height / 2)
-    .scale(0.8);  // Ajustez cette valeur pour zoomer plus ou moins sur la carte
+    .scale(0.5);  // Dézoome initialement
 
 svg.call(zoom.transform, initialTransform);
+svg.call(zoom);
+
+
+function moveVelo(velo, targetNode) {
+    const currentPosition = nodeById[velo.position]; // Position actuelle du vélo
+    if (!currentPosition || !targetNode) {
+        console.error(`Position ou cible manquante pour le vélo ${velo.id}`);
+        return;
+    }
+
+    const x1 = currentPosition.x;
+    const y1 = currentPosition.y;
+    const x2 = targetNode.x;
+    const y2 = targetNode.y;
+
+    console.log(`Déplacement du vélo ${velo.id} de (${x1}, ${y1}) à (${x2}, ${y2})`);
+
+    const distance = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2); // Calculer la distance
+    const duration = distance * 100; // Ajuster la durée en fonction de la distance
+
+    velo.isMoving = true; // Le vélo est en train de se déplacer
+
+    // Démarrer une transition D3 pour déplacer le vélo
+    d3.select(`#${velo.id} circle`)
+        .transition()
+        .duration(duration)
+        .attr("cx", x2)
+        .attr("cy", y2)
+        .on("start", () => console.log(`Déplacement du ${velo.id} vers ${targetNode.id}`))
+        .on("end", () => {
+            // Mettre à jour la position du vélo après déplacement
+            velo.position = targetNode.id;
+            velo.distanceParcourue += distance;
+            velo.autonomie -= distance; // Réduire l'autonomie
+            velo.isMoving = false; // Le vélo a terminé son déplacement
+
+            // Gestion de la charge du vélo
+            if (velo.position !== "Porte d'Ivry") {
+                velo.charge += 50; // Ajouter 50 kg à chaque arrêt
+                velo.assignedStops.delete(targetNode.id); // Supprimer l'arrêt visité
+            }
+
+            // Si le vélo a atteint sa capacité maximale ou n'a plus assez d'autonomie, retour au dépôt
+            if (velo.charge >= velo.capacite || velo.autonomie <= 0) {
+                console.log(`${velo.id} retourne au dépôt pour décharger.`);
+                moveVelo(velo, nodeById["Porte d'Ivry"]); // Retour au dépôt
+                velo.charge = 0; // Réinitialiser la charge après déchargement
+                velo.autonomie = WINTER_MODE ? 45 : 50; // Réinitialiser l'autonomie
+            } else {
+                // Continuer vers le prochain arrêt
+                calculateRoutesForVelos();
+            }
+        });
+}
+
 
 function calculateRoutesForVelos() {
     for (const velo of velos) {
-        if (!velo.currentLink && velo.autonomie > 0 && velo.charge < velo.capacite && velo.assignedStops.size > 0) {
-            const currentPositionId = typeof velo.position === 'string' ? velo.position : velo.position.id;
-            const nextStop = findNextStopForVelo(currentPositionId, velo);
+        // Vérifier si le vélo est en panne ou n'a pas d'arrêts assignés
+        if (velo.isBroken || velo.assignedStops.size === 0) {
+            console.log(`${velo.id} ne peut pas se déplacer car il est en panne ou n'a pas d'arrêt assigné`);
+            continue;
+        }
 
+        if (velo.autonomie > 0 && velo.charge < velo.capacite && !velo.isMoving) {
+            const currentPositionId = velo.position;
+            console.log(`${velo.id} est actuellement à ${currentPositionId}`);
+
+            // Obtenir l'arrêt suivant dans la tournée assignée
+            const nextStop = getNextStopFromTournee(velo);
             if (!nextStop) {
+                console.log(`Pas d'arrêt suivant trouvé pour ${velo.id}`);
                 continue;
             }
 
-            const graph = {
-                nodes: nodeById,
-                links: links
-            };
-            const { distances, previousNodes } = dijkstra(graph, currentPositionId);
+            console.log(`Arrêt suivant pour ${velo.id}: ${nextStop}`);
+
+            // Trouver le chemin le plus court vers l'arrêt suivant
+            const { distances, previousNodes } = dijkstra({ nodes: nodeById, links: links }, currentPositionId);
             const path = reconstructPath(previousNodes, nextStop);
 
+            // Se déplacer vers le prochain arrêt si le chemin est valide
             if (path.length > 1) {
-                const currentStop = path[0];
-                const nextStop = path[1];
-
-                const link = links.find(link =>
-                    (link.source.id === currentStop && link.target.id === nextStop) ||
-                    (link.source.id === nextStop && link.target.id === currentStop)
-                );
-
-                if (link) {
-                    velo.currentLink = link;
-                    velo.progress = 0;
-                }
-            }
-        }
-
-        if (velo.currentLink) {
-            const link = velo.currentLink;
-            velo.progress += 0.01; // Progression de l'animation (ajustez la valeur pour contrôler la vitesse)
-
-            if (velo.progress >= 1) {
-                // Le vélo atteint la fin de l'arête, mise à jour des propriétés du vélo
-                velo.position = link.target;
-                velo.distanceParcourue += link.distance;
-                velo.autonomie -= link.distance + (link.trafficLights / 20);
-                velo.feuxRencontres += link.trafficLights;
-                velo.charge += 50;
-                velo.tournee.push(velo.position.id);
-
-                // Enregistrer l'heure de passage pour l'arrêt
-                const currentTime = new Date().toLocaleTimeString();
-                pointsDePassageTraites[velo.position.id] = currentTime;
-
-                // Enregistrer l'heure de traitement pour la rue
-                if (!ruesTraitees[link.street]) {
-                    ruesTraitees[link.street] = currentTime;
-                }
-
-                // Vérifier si le vélo doit retourner à la base
-                if (velo.autonomie <= 0 || velo.charge >= velo.capacite) {
-                    console.log(`${velo.id} doit retourner à la base pour recharger ou vider la charge.`);
-                    completedTours.push({
-                        id: velo.id,
-                        tournee: [...velo.tournee], // Cloner l'itinéraire
-                        distanceParcourue: velo.distanceParcourue,
-                        feuxRencontres: velo.feuxRencontres,
-                        charge: velo.charge
-                    });
-
-                    velo.position = depotIvry;
-                    velo.autonomie = WINTER_MODE ? 45 : 50; // Recharge
-                    velo.distanceParcourue = 0;
-                    velo.feuxRencontres = 0;
-                    velo.charge = 0;
-                    velo.tournee = [];
-                }
-
-                velo.currentLink = null; // Réinitialiser le lien actuel
-            } else {
-                // Calculer la position intermédiaire pendant que le vélo se déplace
-                updateVeloPosition(velo);
+                const nextStopOnPath = path[1]; // Prochain arrêt réel
+                moveVelo(velo, nodeById[nextStopOnPath]); // Déplacer le vélo
             }
         }
     }
-
-    updateMap();
-    updateVeloInfo();
-    updateTraiteesInfo();
 }
 
-function updateVeloPosition(velo) {
-    if (!velo.currentLink) return;
-
-    const x1 = velo.currentLink.source.x;
-    const y1 = velo.currentLink.source.y;
-    const x2 = velo.currentLink.target.x;
-    const y2 = velo.currentLink.target.y;
-
-    // Calculer la position intermédiaire sur la ligne entre les deux points
-    const cx = x1 + (x2 - x1) * velo.progress;
-    const cy = y1 + (y2 - y1) * velo.progress;
-
-    // Mettre à jour la position du vélo sur la carte
-    d3.select(`#${velo.id} circle`)
-        .attr("cx", cx)
-        .attr("cy", cy);
-
-    d3.select(`#${velo.id} text`)
-        .attr("x", cx + 12)
-        .attr("y", cy);
+function getNextStopFromTournee(velo) {
+    if (!velo.assignedStops || velo.assignedStops.size === 0) {
+        console.log(`${velo.id} n'a pas d'arrêts assignés.`);
+        return null;
+    }
+    const stopsArray = Array.from(velo.assignedStops);
+    if (stopsArray.length === 0) return null;
+    return stopsArray[0]; // Prendre le premier arrêt dans la liste
 }
+
 
 function findNextStopForVelo(currentPosition, velo) {
     const unvisitedStopsArray = Array.from(velo.assignedStops);
@@ -320,26 +348,23 @@ function findNextStopForVelo(currentPosition, velo) {
         return null;
     }
 
+    // Trouver l'arrêt le plus proche
     const closestStop = unvisitedStopsArray.reduce((prev, curr) => {
         const prevDist = heuristicCostEstimate(currentPosition, prev);
         const currDist = heuristicCostEstimate(currentPosition, curr);
         return (currDist < prevDist) ? curr : prev;
     });
 
-    velo.assignedStops.delete(closestStop);
+    velo.assignedStops.delete(closestStop); // Supprimer l'arrêt visité
     return closestStop;
 }
 
 function heuristicCostEstimate(start, goal) {
-    // Assurez-vous que start et goal sont des identifiants de chaîne
-    const startNodeId = typeof start === 'string' ? start : start.id;
-    const goalNodeId = typeof goal === 'string' ? goal : goal.id;
-
-    const startNode = nodeById[startNodeId];
-    const goalNode = nodeById[goalNodeId];
+    const startNode = nodeById[typeof start === 'string' ? start : start.id];
+    const goalNode = nodeById[typeof goal === 'string' ? goal : goal.id];
 
     if (!startNode || !goalNode) {
-        console.error(`Nœud manquant pour le calcul heuristique: start = ${startNodeId}, goal = ${goalNodeId}`);
+        console.error(`Nœud manquant pour le calcul heuristique: start = ${start}, goal = ${goal}`);
         return Infinity;
     }
 
@@ -348,46 +373,128 @@ function heuristicCostEstimate(start, goal) {
     return Math.sqrt(dx * dx + dy * dy);
 }
 
-function reconstructPath(cameFrom, current) {
-    const totalPath = [];
 
-    while (current) {
-        totalPath.unshift(current);
-        current = cameFrom[current];
+// Fonction d'estimation heuristique de la distance entre deux nœuds
+function heuristicCostEstimate(start, goal) {
+    const startNode = nodeById[typeof start === 'string' ? start : start.id];
+    const goalNode = nodeById[typeof goal === 'string' ? goal : goal.id];
+
+    if (!startNode || !goalNode) {
+        console.error(`Nœud manquant pour le calcul heuristique: start = ${start}, goal = ${goal}`);
+        return Infinity;
     }
 
-    return totalPath;
+    // Calculer la distance euclidienne entre deux nœuds
+    const dx = startNode.x - goalNode.x;
+    const dy = startNode.y - goalNode.y;
+    return Math.sqrt(dx * dx + dy * dy);
 }
 
+
+function manageCapacity(velo) {
+    if (velo.charge >= velo.capacite) {
+        const retourLink = links.find(link => link.target.id === "Porte d'Ivry" || link.source.id === "Porte d'Ivry");
+        moveVelo(velo, nodeById["Porte d'Ivry"]);
+        velo.charge = 0; // Décharger le vélo
+    }
+}
+
+
+// Reconstituer le chemin à partir de Dijkstra
+function reconstructPath(previousNodes, target) {
+    const path = [];
+    let current = target;
+
+    while (current) {
+        path.unshift(current);
+        current = previousNodes[current];
+    }
+
+    return path;
+}
 function simulateIncidents() {
     const incidentTypes = ['arret_bloque', 'velo_en_panne', 'accident_corporel', 'arret_supprime', 'casse_velo'];
     const incidentType = incidentTypes[Math.floor(Math.random() * incidentTypes.length)];
 
     if (incidentType === 'arret_bloque') {
+        // Bloquer un arrêt aléatoire
         const randomNode = nodes[Math.floor(Math.random() * nodes.length)];
         randomNode.isBlocked = true;
         console.log(`Incident: arrêt bloqué à ${randomNode.id}`);
+        
+        // Recalculer les itinéraires pour éviter l'arrêt bloqué
+        recalculateAllVeloRoutes();
+        
     } else if (incidentType === 'velo_en_panne') {
+        // Mettre un vélo en panne
         const randomVelo = velos[Math.floor(Math.random() * velos.length)];
         randomVelo.isBroken = true;
         console.log(`Incident: ${randomVelo.id} est en panne`);
+        
+        // Redistribuer les arrêts assignés à ce vélo
+        redistributeStops(randomVelo);
+        
     } else if (incidentType === 'accident_corporel') {
+        // Signaler un accident pour un vélo
         const randomVelo = velos[Math.floor(Math.random() * velos.length)];
         randomVelo.isAccident = true;
         console.log(`Incident: Accident corporel pour ${randomVelo.id}`);
+        
+        // Marquer le vélo comme non opérationnel et redistribuer ses arrêts
+        redistributeStops(randomVelo);
+        
     } else if (incidentType === 'arret_supprime') {
+        // Supprimer un arrêt aléatoire
         const randomStop = Array.from(unvisitedStops)[Math.floor(Math.random() * unvisitedStops.size)];
         unvisitedStops.delete(randomStop);
         console.log(`Incident: Arrêt supprimé ${randomStop}`);
+        
+        // Recalculer les itinéraires pour éviter cet arrêt
+        recalculateAllVeloRoutes();
+        
     } else if (incidentType === 'casse_velo') {
+        // Casser un vélo
         const randomVelo = velos[Math.floor(Math.random() * velos.length)];
         randomVelo.isBroken = true;
         console.log(`Incident: ${randomVelo.id} est cassé`);
+        
+        // Redistribuer les arrêts assignés au vélo cassé
+        redistributeStops(randomVelo);
     }
 
+    // Mettre à jour l'interface
     updateMap();
     updateVeloInfo();
     updateTraiteesInfo();
+}
+
+// Fonction pour redistribuer les arrêts d'un vélo non opérationnel
+function redistributeStops(velo) {
+    console.log(`Redistribution des arrêts de ${velo.id} car il est non opérationnel.`);
+    
+    if (velo.assignedStops.size > 0) {
+        const stopsArray = Array.from(velo.assignedStops);
+        
+        // Réattribuer ces arrêts à d'autres vélos actifs
+        velos.forEach(v => {
+            if (!v.isBroken && !v.isAccident) {
+                const stopsToAssign = stopsArray.splice(0, Math.ceil(stopsArray.length / (velos.length - 1)));
+                stopsToAssign.forEach(stop => v.assignedStops.add(stop));
+            }
+        });
+        
+        // Retirer tous les arrêts assignés à ce vélo
+        velo.assignedStops.clear();
+    }
+}
+
+// Fonction pour recalculer les itinéraires de tous les vélos après un incident
+function recalculateAllVeloRoutes() {
+    velos.forEach(velo => {
+        if (!velo.isBroken && !velo.isAccident) {
+            calculateRoutesForVelos();
+        }
+    });
 }
 
 function updateMap() {
@@ -469,6 +576,8 @@ function updateTraiteesInfo() {
             <p>Point de passage: ${stop} - Heure de traitement: ${time}</p>
         `);
 }
+console.log(`Arrêts assignés pour ${velo.id}: `, Array.from(velo.assignedStops));
+console.log(`Coordonnées du vélo ${velo.id}: `, nodeById[velo.position]?.x, nodeById[velo.position]?.y);
 
 // Appel des fonctions pour mettre à jour les informations régulièrement
 setInterval(updateVeloInfo, 2000);
