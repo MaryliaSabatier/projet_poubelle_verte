@@ -2,9 +2,8 @@ console.log("Script.js is loaded");
 
 const WINTER_MODE = true; // Active ou désactive le mode hiver
 
-const velos = [
+let velos = [
     { id: "Velo1", position: "Porte d'Ivry", autonomie: WINTER_MODE ? 45 : 50, charge: 0, capacite: 200, distanceParcourue: 0, feuxRencontres: 0, isBroken: false, currentLink: null, tournee: [], assignedStops: new Set(), isMoving: false },
-    { id: "Velo2", position: "Porte d'Ivry", autonomie: WINTER_MODE ? 45 : 50, charge: 0, capacite: 200, distanceParcourue: 0, feuxRencontres: 0, isBroken: false, currentLink: null, tournee: [], assignedStops: new Set(), isMoving: false }
 ];
 
 const nodes = [];
@@ -187,24 +186,7 @@ function dijkstra(graph, startNode) {
     return { distances, previousNodes };
 }
 
-// Correction dans `getNextStopFromTournee` :
-function getNextStopFromTournee(velo) {
-    // Vérifiez d'abord si assignedStops existe et est itérable
-    if (!velo.assignedStops || !(velo.assignedStops instanceof Set) || velo.assignedStops.size === 0) {
-        console.log(`${velo.id} n'a pas d'arrêts assignés ou la collection n'est pas valide.`);
-        return null;
-    }
-    
-    const stopsArray = Array.from(velo.assignedStops);
-    
-    if (stopsArray.length === 0) {
-        console.log(`${velo.id} n'a pas d'arrêts à visiter.`);
-        return null;
-    }
-    
-    return stopsArray[0]; // Prendre le premier arrêt dans la liste
-}
-
+// Fonction pour diviser les arrêts entre les vélos
 function divideStopsAmongVelos() {
     const stopArray = Array.from(unvisitedStops);
     if (!stopArray || stopArray.length === 0) {
@@ -230,9 +212,60 @@ function divideStopsAmongVelos() {
     });
 }
 
+// Fonction d'itinéraire du vélo
+function calculateRoutesForVelos() {
+    for (const velo of velos) {
+        // Vérifier si le vélo est en panne ou n'a pas d'arrêts assignés
+        if (velo.isBroken || !velo.assignedStops || velo.assignedStops.size === 0) {
+            console.log(`${velo.id} ne peut pas se déplacer car il est en panne ou n'a pas d'arrêt assigné`);
+            continue;
+        }
+
+        if (velo.autonomie > 0 && velo.charge < velo.capacite && !velo.isMoving) {
+            const currentPositionId = velo.position;
+            console.log(`${velo.id} est actuellement à ${currentPositionId}`);
+
+            // Obtenir l'arrêt suivant dans la tournée assignée
+            const nextStop = getNextStopFromTournee(velo);
+            if (!nextStop) {
+                console.log(`Pas d'arrêt suivant trouvé pour ${velo.id}`);
+                continue;
+            }
+
+            console.log(`Arrêt suivant pour ${velo.id}: ${nextStop}`);
+
+            // Trouver le chemin le plus court vers l'arrêt suivant
+            const { distances, previousNodes } = dijkstra({ nodes: nodeById, links: links }, currentPositionId);
+            const path = reconstructPath(previousNodes, nextStop);
+
+            // Se déplacer vers le prochain arrêt si le chemin est valide
+            if (path.length > 1) {
+                const nextStopOnPath = path[1]; // Prochain arrêt réel
+                moveVelo(velo, nodeById[nextStopOnPath]); // Déplacer le vélo
+            }
+        }
+    }
+}
+
+// Fonction pour obtenir l'arrêt suivant
+function getNextStopFromTournee(velo) {
+    // Vérifiez d'abord si assignedStops existe et est itérable
+    if (!velo.assignedStops || !(velo.assignedStops instanceof Set) || velo.assignedStops.size === 0) {
+        console.log(`${velo.id} n'a pas d'arrêts assignés ou la collection n'est pas valide.`);
+        return null;
+    }
+    
+    const stopsArray = Array.from(velo.assignedStops);
+    
+    if (stopsArray.length === 0) {
+        console.log(`${velo.id} n'a pas d'arrêts à visiter.`);
+        return null;
+    }
+    
+    return stopsArray[0]; // Prendre le premier arrêt dans la liste
+}
 
 divideStopsAmongVelos();
-
 
 // Définir initialTransform pour dézoomer la carte au chargement
 const initialTransform = d3.zoomIdentity
@@ -241,7 +274,6 @@ const initialTransform = d3.zoomIdentity
 
 svg.call(zoom.transform, initialTransform);
 svg.call(zoom);
-
 
 function moveVelo(velo, targetNode) {
     const currentPosition = nodeById[velo.position]; // Position actuelle du vélo
@@ -576,7 +608,6 @@ function updateTraiteesInfo() {
             <p>Point de passage: ${stop} - Heure de traitement: ${time}</p>
         `);
 }
-console.log(`Arrêts assignés pour ${velo.id}: `, Array.from(velo.assignedStops));
 console.log(`Coordonnées du vélo ${velo.id}: `, nodeById[velo.position]?.x, nodeById[velo.position]?.y);
 
 // Appel des fonctions pour mettre à jour les informations régulièrement
