@@ -14,11 +14,25 @@
     <div id="velo-info-container"></div>
     <div id="completed-tours-container"></div>
 
+    <!-- Inclusion des bibliothèques nécessaires -->
     <script src="https://d3js.org/d3.v7.min.js"></script>
-    <script src="assets/data/streets_data.js"></script>
+    <script src="assets/lib/leaflet.js"></script>
+
+    <!-- Chargement des données dynamiques depuis get_streets_data.php -->
+    <script>
+        // Récupération des données depuis le script PHP
+        fetch("get_streets_data.php")
+            .then(response => response.json())
+            .then(data => {
+                // Stocker les données dans une variable globale pour les utiliser dans le script principal
+                window.ruesEtArrets = data;
+                // Initialiser la carte avec les données une fois qu'elles sont chargées
+                initMap();
+            })
+            .catch(error => console.error("Erreur lors du chargement des données : ", error));
+    </script>
+
+    <!-- Inclusion du script principal pour gérer l'affichage de la carte et des parcours -->
     <script src="assets/js/script.js"></script>
-
-
-
 </body>
 </html>
