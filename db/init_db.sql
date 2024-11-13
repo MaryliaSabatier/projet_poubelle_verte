@@ -33,21 +33,30 @@ CREATE TABLE velos (
 
 -- Table des rues
 CREATE TABLE rues (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    nom VARCHAR(100) UNIQUE NOT NULL,
-    longueur_m INT,
-    sens_circulation ENUM('aller', 'retour', 'double_sens')
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    libelle VARCHAR(255) NOT NULL
 );
 
 -- Table des arrêts
 CREATE TABLE arrets (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    rue_id INT NOT NULL,
-    latitude DECIMAL(10, 8) NOT NULL,
-    longitude DECIMAL(11, 8) NOT NULL,
-    type_dechets VARCHAR(50),
-    FOREIGN KEY (rue_id) REFERENCES rues(id)
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    libelle VARCHAR(255) NOT NULL,
+    latitude DECIMAL(9, 6) NOT NULL,
+    longitude DECIMAL(9, 6) NOT NULL,
+    ramassage BOOLEAN NOT NULL DEFAULT 0,
+    `accessible` BOOLEAN NOT NULL DEFAULT 1
 );
+
+-- Table de corespondance rues et arrets
+CREATE TABLE arret_rues (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    rue_id INT NOT NULL,
+    arret_id INT NOT NULL,
+    ordre INT NOT NULL,
+    FOREIGN KEY (rue_id) REFERENCES rues(id) ON DELETE CASCADE,
+    FOREIGN KEY (arret_id) REFERENCES arrets(id) ON DELETE CASCADE
+);
+
 
 -- Table des tournées
 CREATE TABLE tournees (
