@@ -1,5 +1,3 @@
-console.log("Script.js is loaded");
-
 // Dimensions de la carte
 const width = window.innerWidth;
 const height = window.innerHeight;
@@ -16,15 +14,24 @@ const g = svg.append("g")
 
 // Fonction de zoom et de dézoom
 const zoom = d3.zoom()
-    .scaleExtent([0.5, 5]) // Définir les niveaux minimum et maximum de zoom
+    .scaleExtent([0.1, 5])
     .on("zoom", (event) => {
-        g.attr("transform", event.transform); // Appliquer la transformation au groupe principal
+        g.attr("transform", event.transform);
     });
 
-// Appliquer le zoom au SVG
 svg.call(zoom);
 
-// Fonction pour initialiser la carte
+// Initialisation du tooltip
+const tooltip = d3.select("body").append("div")
+    .attr("class", "tooltip")
+    .style("position", "absolute")
+    .style("background-color", "white")
+    .style("padding", "5px")
+    .style("border", "1px solid #ddd")
+    .style("border-radius", "3px")
+    .style("display", "none");
+
+// Fonction principale pour initialiser la carte
 function initMap() {
     console.log("Initialisation de la carte");
 
@@ -33,64 +40,84 @@ function initMap() {
         return;
     }
 
+    // Initialisation de la projection Mercator pour Paris
+    const projection = d3.geoMercator()
+        .center([2.3522, 48.8566]) // Centre de Paris
+        .scale(1000000) // Ajustement de l'échelle pour le métro
+        .translate([width / 2, height / 2]);
+
     const nodes = [];
     const links = [];
     const nodeById = {};
+    const stopLines = {}; // Stocker les lignes auxquelles appartient chaque arrêt
 
-    // Préparer les données des arrêts et des liens
+    // Créer un dictionnaire pour stocker l'ordre des arrêts par rue
+    const arretsParRue = {};
+
     for (const rue in window.ruesEtArrets) {
-        const arrets = window.ruesEtArrets[rue].stops;
+        const arrets = window.ruesEtArrets[rue].stops.sort((a, b) => a.order - b.order);
+        arretsParRue[rue] = arrets;
 
         for (let i = 0; i < arrets.length; i++) {
             const arret = arrets[i];
 
-            if (!arret || !arret.name) {
-                console.error(`Nom d'arrêt invalide pour la rue ${rue} à l'indice ${i}.`);
+            if (!arret || !arret.name || arret.lat == null || arret.lon == null) {
+                console.error(`Nom ou coordonnées d'arrêt invalide pour la rue ${rue} à l'indice ${i}.`);
                 continue;
             }
 
+            // Créer un nœud pour chaque arrêt s'il n'existe pas déjà
             let existingNode = nodeById[arret.name];
             if (!existingNode) {
-                existingNode = { id: arret.name, type: "stop" };
+                const [x, y] = projection([arret.lon, arret.lat]);
+                if (isNaN(x) || isNaN(y)) {
+                    console.error(`Projection échouée pour l'arrêt ${arret.name} avec les coordonnées (${arret.lon}, ${arret.lat}).`);
+                    continue;
+                }
+
+                existingNode = { id: arret.name, type: "stop", x: x, y: y, lat: arret.lat, lon: arret.lon };
                 nodes.push(existingNode);
-                nodeById[arret.name] = existingNode;
+                nodeById[arret.name] = existingNode; // Stocker l'arrêt avec ses coordonnées GPS
             }
 
-            // Relier uniquement les arrêts consécutifs sur chaque rue
+            if (!stopLines[arret.name]) {
+                stopLines[arret.name] = new Set();
+            }
+            stopLines[arret.name].add(rue);
+
             if (i > 0) {
-                links.push({
-                    source: nodeById[arrets[i - 1].name],
-                    target: existingNode,
-                    street: rue.replace(/\s+/g, '-')
-                });
+                const previousNode = nodeById[arrets[i - 1].name];
+                if (previousNode && existingNode) {
+                    links.push({
+                        source: previousNode,
+                        target: existingNode,
+                        street: rue.replace(/\s+/g, '-')
+                    });
+                }
             }
         }
     }
 
-    // Initialiser la simulation de forces pour organiser les liens
+    // Simulation de force pour positionner les nœuds
     const simulation = d3.forceSimulation(nodes)
-        .force("link", d3.forceLink(links).id(d => d.id).distance(40).strength(0.1)) // Lien court avec flexibilité
-        .force("charge", d3.forceManyBody().strength(-1200)) // Force de répulsion augmentée
-        .force("collision", d3.forceCollide().radius(50)) // Collision augmentée pour espacer davantage
+        .force("link", d3.forceLink(links).id(d => d.id).distance(30).strength(1))
+        .force("charge", d3.forceManyBody().strength(-500))
+        .force("collision", d3.forceCollide().radius(100))
         .force("center", d3.forceCenter(width / 2, height / 2))
         .on("tick", ticked);
 
-    // Calculer les positions finales sans animation
-    for (let i = 0; i < 600; i++) simulation.tick();
-    simulation.stop();
+    const colorScale = d3.scaleOrdinal(d3.schemeCategory10);
 
-    // Afficher les liens entre les arrêts
     const link = g.append("g")
         .attr("class", "links")
         .selectAll("line")
         .data(links)
         .join("line")
         .attr("class", d => `link ${d.street}`)
-        .attr("stroke", "grey")
-        .attr("stroke-width", 1.2)
+        .attr("stroke", d => colorScale(d.street))
+        .attr("stroke-width", 1.5)
         .attr("opacity", 0.7);
 
-    // Afficher les nœuds (stations)
     const node = g.append("g")
         .attr("class", "nodes")
         .selectAll("g")
@@ -98,41 +125,59 @@ function initMap() {
         .join("g");
 
     node.append("circle")
-        .attr("r", 15) // Taille augmentée pour les arrêts
+        .attr("r", 15)
         .attr("class", "stop")
-        .attr("fill", "blue");
+        .attr("fill", "#1f77b4")
+        .attr("stroke", "#333")
+        .attr("stroke-width", 1.5)
+        .on("mouseover", (event, d) => {
+            d3.select(event.currentTarget).attr("fill", "#ff7f0e");
+            tooltip.style("display", "block")
+                   .html(`ID: ${d.id}<br>Latitude: ${d.lat}<br>Longitude: ${d.lon}`);
+        })
+        .on("mousemove", (event) => {
+            tooltip.style("top", `${event.pageY + 10}px`)
+                   .style("left", `${event.pageX + 10}px`);
+        })
+        .on("mouseout", (event) => {
+            d3.select(event.currentTarget).attr("fill", "#1f77b4");
+            tooltip.style("display", "none");
+        });
 
-    // Afficher les noms des arrêts
     node.append("text")
         .attr("class", "label")
         .text(d => d.id)
-        .attr("x", 50) // Décaler un peu plus pour éviter les chevauchements
-        .attr("y", 3)
-        .style("font-size", "50px") // Ajuster la taille de la police pour plus de lisibilité
-        .style("fill", "black");
+        .attr("x", 30)
+        .attr("y", 4)
+        .style("font-size", "20px")
+        .style("fill", "#333")
+        .style("pointer-events", "none");
 
-    // Fonction pour fixer les positions calculées
     function ticked() {
-        link
-            .attr("x1", d => d.source.x)
+        link.attr("x1", d => d.source.x)
             .attr("y1", d => d.source.y)
             .attr("x2", d => d.target.x)
             .attr("y2", d => d.target.y);
 
-        node
-            .attr("transform", d => `translate(${d.x},${d.y})`);
+        node.attr("transform", d => `translate(${d.x},${d.y})`);
     }
-
-    ticked(); // Appliquer les positions calculées
 }
 
 // Initialiser la carte après le chargement des données
 document.addEventListener("DOMContentLoaded", function() {
     fetch("get_streets_data.php")
-        .then(response => response.json())
-        .then(data => {
-            window.ruesEtArrets = data;
-            initMap();
-        })
-        .catch(error => console.error("Erreur lors du chargement des données : ", error));
+    .then(response => {
+        if (!response.ok) {
+            throw new Error("Erreur réseau lors de la récupération des données.");
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (!data || Object.keys(data).length === 0) {
+            throw new Error("Données des rues et arrêts vides ou incorrectes.");
+        }
+        window.ruesEtArrets = data;
+        initMap();
+    })
+    .catch(error => console.error("Erreur lors du chargement des données : ", error));
 });
