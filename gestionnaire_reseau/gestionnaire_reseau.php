@@ -75,7 +75,7 @@ $totalIncidents = $resultTotalIncidents->fetch_assoc()['total'];
                         <a class="nav-link" href="gestion_tournees.php">Gestion des tournées</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="ajouter_incident.php">Ajouter un incident</a>
+                        <a class="nav-link" href="gestion_incidents.php">Gérer les incidents</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="visualisation_rues.php">Visualisation des rues</a>

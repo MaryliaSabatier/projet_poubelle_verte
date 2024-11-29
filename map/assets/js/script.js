@@ -1,3 +1,13 @@
+// Définition de variables globales
+let projection;
+let activeIncidents = []; // Initialiser activeIncidents comme un tableau vide
+const stops = {
+    Stop1: { lat: 48.8566, lon: 2.3522 }, // Paris
+    Stop2: { lat: 48.8584, lon: 2.2945 }, // Tour Eiffel
+    Stop3: { lat: 48.8738, lon: 2.295 }, // Arc de Triomphe
+    Stop4: { lat: 48.8606, lon: 2.3376 } // Louvre
+};
+
 // Dimensions de la carte
 const width = window.innerWidth;
 const height = window.innerHeight;
@@ -41,7 +51,7 @@ function initMap() {
     }
 
     // Initialisation de la projection Mercator pour Paris
-    const projection = d3.geoMercator()
+    projection = d3.geoMercator()
         .center([2.3522, 48.8566]) // Centre de Paris
         .scale(1000000) // Ajustement de l'échelle pour le métro
         .translate([width / 2, height / 2]);
@@ -96,6 +106,8 @@ function initMap() {
                 }
             }
         }
+        drawTours(assignments, stops, projection); // Utilisez la projection définie ici
+
     }
 
     // Simulation statique : les nœuds restent fixes
@@ -173,6 +185,48 @@ function initMap() {
     }
 }
 
+console.log("Données envoyées :", JSON.stringify({ incidents: activeIncidents }));
+
+function recalculateTours(activeIncidents) {
+    fetch('http://localhost/projet_poubelle_verte/gestionnaire_reseau/api/recalculate_tours.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ incidents: activeIncidents }) // Envoyer les incidents
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                console.log("Tournées recalculées avec succès : ", data.newTours);
+
+                // Transformez les arrêts en tableau si nécessaire
+                const stopsArray = Object.entries(stops).map(([id, stop]) => ({
+                    id,
+                    ...stop
+                }));
+
+                // Recalculer les assignations avec les nouvelles données
+                const assignments = assignStopsToCyclists(cyclists, stopsArray, graph, activeIncidents);
+                console.log("Assignations recalculées :", JSON.stringify(assignments, null, 2));
+
+                // Mettre à jour la carte avec les nouvelles tournées
+                updateMap(assignments);
+            } else {
+                console.error('Erreur de recalcul des tournées : ', data.message);
+            }
+        })
+        .catch(error => console.error("Erreur réseau lors du recalcul :", error));
+}
+
+
+function updateMap(newTours) {
+    // Supprime les anciennes lignes de tournées
+    g.selectAll(".tour-line").remove();
+
+    // Redessine les tournées recalculées
+    drawTours(newTours, stops, projection);
+}
+
+
 // Initialiser la carte après le chargement des données
 document.addEventListener("DOMContentLoaded", function () {
     fetch("get_streets_data.php")
@@ -212,8 +266,8 @@ function calculateDistances(stops) {
                 const a =
                     Math.sin(latDelta / 2) ** 2 +
                     Math.cos(latFrom) *
-                        Math.cos(latTo) *
-                        Math.sin(lonDelta / 2) ** 2;
+                    Math.cos(latTo) *
+                    Math.sin(lonDelta / 2) ** 2;
                 const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
                 const distance = earthRadius * c;
@@ -271,51 +325,48 @@ function reconstructPath(previous, target) {
     return path;
 }
 
-// Assignation des arrêts aux cyclistes
-function assignStopsToCyclists(cyclists, stops, graph) {
+function assignStopsToCyclists(cyclists, stops, graph, incidents) {
+    // Si incidents n'est pas un tableau, l'initialiser vide
+    if (!Array.isArray(incidents)) {
+        console.error("Les incidents ne sont pas un tableau valide.");
+        incidents = []; // Initialiser incidents comme tableau vide
+    }
+
+    const blockedStops = incidents.map(incident => incident.stop_id);
+    const validStops = stops.filter(stop => !blockedStops.includes(stop.id));
+
     const assignments = {};
-    const remainingStops = { ...stops };
+    cyclists.forEach(cyclist => {
+        if (validStops.length > 0) {
+            assignments[cyclist] = [];
+            let currentStop = validStops.shift(); // Assigner le premier arrêt
+            assignments[cyclist].push(currentStop);
 
-    for (const cyclist of cyclists) {
-        assignments[cyclist] = [];
-        let currentStop = Object.keys(remainingStops)[0]; // Prendre le premier arrêt
-        if (!currentStop) break;
+            while (validStops.length > 0) {
+                let nextStop = null;
+                let minDistance = Infinity;
 
-        assignments[cyclist].push(currentStop);
-        delete remainingStops[currentStop];
+                validStops.forEach(stop => {
+                    const distance = graph[currentStop.id]?.[stop.id] ?? Infinity;
+                    if (distance < minDistance) {
+                        minDistance = distance;
+                        nextStop = stop;
+                    }
+                });
 
-        while (Object.keys(remainingStops).length > 0) {
-            let nextStop = null;
-            let minDistance = Infinity;
-
-            for (const stop in remainingStops) {
-                const distance = graph[currentStop][stop];
-                if (distance < minDistance) {
-                    minDistance = distance;
-                    nextStop = stop;
+                if (nextStop) {
+                    assignments[cyclist].push(nextStop);
+                    validStops.splice(validStops.indexOf(nextStop), 1);
+                    currentStop = nextStop;
+                } else {
+                    break;
                 }
             }
-
-            if (nextStop !== null) {
-                assignments[cyclist].push(nextStop);
-                delete remainingStops[nextStop];
-                currentStop = nextStop;
-            } else {
-                break;
-            }
         }
-    }
+    });
 
     return assignments;
 }
-
-// Exemples de données
-const stops = {
-    Stop1: { lat: 48.8566, lon: 2.3522 }, // Paris
-    Stop2: { lat: 48.8584, lon: 2.2945 }, // Tour Eiffel
-    Stop3: { lat: 48.8738, lon: 2.295 }, // Arc de Triomphe
-    Stop4: { lat: 48.8606, lon: 2.3376 } // Louvre
-};
 
 // Calculer le graphe des distances
 const graph = calculateDistances(stops);
@@ -331,5 +382,111 @@ console.log("Chemin optimal:", path);
 
 // Assignation des arrêts aux cyclistes
 const cyclists = ["Cycliste1", "Cycliste2"];
-const assignments = assignStopsToCyclists(cyclists, stops, graph);
-console.log("Assignations des arrêts :", assignments);
+
+// Afficher les tournées sur la carte
+function drawTours(tours, stops, projection) {
+    if (!projection) {
+        console.error("La projection n'est pas définie.");
+        return;
+    }
+
+    const colorScale = d3.scaleOrdinal(d3.schemeCategory10);
+
+    for (const [cyclist, tour] of Object.entries(tours)) {
+        const pathData = tour.map(stop => {
+            const { lon, lat } = stops[stop.id]; // Identifier correctement les arrêts
+            return projection([lon, lat]);
+        });
+
+        g.append("path")
+            .datum(pathData)
+            .attr("d", d3.line())
+            .attr("fill", "none")
+            .attr("stroke", colorScale(cyclist))
+            .attr("stroke-width", 2)
+            .attr("class", "tour-line");
+
+        d3.select(".legend")
+            .append("div")
+            .style("color", colorScale(cyclist))
+            .text(`${cyclist}`);
+    }
+}
+
+const stopsArray = Object.entries(stops).map(([id, stop]) => ({
+    id,
+    ...stop
+}));
+
+// Créer les assignations pour les cyclistes
+const assignments = assignStopsToCyclists(cyclists, stopsArray, graph, []);
+console.log("Assignations des arrêts :", JSON.stringify(assignments, null, 2));
+
+
+function exportToursToJson(tours) {
+    const blob = new Blob([JSON.stringify(tours, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "tours.json";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+}
+
+// Bouton pour exporter
+document.getElementById("export-tours").addEventListener("click", () => {
+    exportToursToJson(assignments);
+});
+
+function exportToursToJson(tours) {
+    const blob = new Blob([JSON.stringify(tours, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "tours.json";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+}
+
+// Bouton pour exporter
+document.getElementById("export-tours").addEventListener("click", () => {
+    exportToursToJson(assignments);
+});
+
+document.getElementById("recalculate-button").addEventListener("click", () => {
+    // Exemple d'incidents actifs (à remplacer par des données dynamiques si nécessaire)
+    const activeIncidents = [
+        { stop_id: "Stop2", type: "rue_bloquee" } // Exemple de données
+    ];
+
+    // Vérifier que les incidents sont correctement définis pour le débogage
+    console.log("Incidents actifs envoyés :", activeIncidents);
+
+    fetch('http://localhost/projet_poubelle_verte/gestionnaire_reseau/api/recalculate_tours.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ incidents: activeIncidents }) // Envoyer les incidents actifs
+    })
+        .then(response => {
+            // Vérification de la réponse du serveur
+            if (!response.ok) {
+                throw new Error(`Erreur HTTP ! Statut : ${response.status}`);
+            }
+            return response.json(); // Parse la réponse JSON
+        })
+        .then(data => {
+            // Vérification du statut dans les données reçues
+            if (data.status === 'success') {
+                console.log("Tournées recalculées :", data.newTours);
+                updateMap(data.newTours); // Met à jour la carte avec les nouvelles tournées
+            } else {
+                console.error('Erreur dans la réponse JSON :', data.message);
+            }
+        })
+        .catch(error => {
+            // Gestion des erreurs réseau ou JSON
+            console.error('Erreur réseau ou JSON :', error);
+        });
+});

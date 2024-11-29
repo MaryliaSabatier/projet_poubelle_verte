@@ -4,11 +4,56 @@
     <meta charset="UTF-8">
     <title>Carte des Trajets pour Cyclistes</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Inclure les styles nécessaires -->
     <link rel="stylesheet" href="assets/css/styles.css" />
+    <style>
+        /* Ajout de styles de base si nécessaire */
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+        }
+
+        #map {
+            width: 100%;
+            height: 80vh;
+            border: 1px solid #ddd;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            margin: 20px 0;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        .btn-warning {
+            background-color: #f0ad4e;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+
+        .btn-warning:hover {
+            background-color: #ec971f;
+        }
+    </style>
 </head>
 <body>
+    <!-- Section des contrôles -->
+    <div class="controls">
+        <button id="recalculate-button" class="btn btn-warning">Recalculer les tournées</button>
+        <button id="export-tours" class="btn btn-primary">Exporter les tournées</button>
+    </div>
+
+    <!-- Section de la carte -->
     <div id="map"></div>
 
+    <!-- Conteneurs pour d'autres informations -->
     <div id="rues-traitees-container"></div>
     <div id="stops-traitees-container"></div>
     <div id="velo-info-container"></div>
@@ -16,25 +61,65 @@
 
     <!-- Inclusion des bibliothèques nécessaires -->
     <script src="https://d3js.org/d3.v7.min.js"></script>
-    <script src="assets/lib/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.8.0/leaflet.js"></script>
 
     <!-- Charger le script principal pour gérer l'affichage de la carte et les parcours -->
     <script src="assets/js/script.js"></script>
 
-    <!-- Chargement des données dynamiques depuis get_streets_data.php -->
+    <!-- Chargement des données dynamiques et initialisation de la carte -->
     <script>
         document.addEventListener("DOMContentLoaded", function() {
+            // Charger les données des rues et arrêts
             fetch("get_streets_data.php")
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error("Erreur réseau lors de la récupération des données.");
+                    }
+                    return response.json();
+                })
                 .then(data => {
-                    window.ruesEtArrets = data;  // Stocker les données dans une variable globale
+                    if (!data || Object.keys(data).length === 0) {
+                        throw new Error("Données des rues et arrêts vides ou incorrectes.");
+                    }
+
+                    // Stocker les données dans une variable globale
+                    window.ruesEtArrets = data;
+
+                    // Vérifier si la fonction initMap est définie dans script.js
                     if (typeof initMap === "function") {
-                        initMap(); // Appeler initMap après le chargement des données et l'exécution de script.js
+                        initMap(); // Initialiser la carte après le chargement des données
                     } else {
                         console.error("La fonction initMap n'est pas définie.");
                     }
                 })
                 .catch(error => console.error("Erreur lors du chargement des données : ", error));
+
+            // Ajouter un écouteur pour le bouton de recalcul des tournées
+            const recalculateButton = document.getElementById("recalculate-button");
+            if (recalculateButton) {
+                recalculateButton.addEventListener("click", () => {
+                    const activeIncidents = [
+                        { stop_id: "Stop2", type: "rue_bloquee" } // Exemple de données
+                    ];
+                    if (typeof recalculateTours === "function") {
+                        recalculateTours(activeIncidents);
+                    } else {
+                        console.error("La fonction recalculateTours n'est pas définie.");
+                    }
+                });
+            }
+
+            // Ajouter un écouteur pour le bouton d'exportation
+            const exportButton = document.getElementById("export-tours");
+            if (exportButton) {
+                exportButton.addEventListener("click", () => {
+                    if (typeof exportToursToJson === "function") {
+                        exportToursToJson(assignments); // Vérifiez que `assignments` est défini
+                    } else {
+                        console.error("La fonction exportToursToJson n'est pas définie.");
+                    }
+                });
+            }
         });
     </script>
 </body>
