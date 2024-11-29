@@ -98,16 +98,17 @@ function initMap() {
         }
     }
 
-    // Simulation de force pour positionner les nœuds
-    const simulation = d3.forceSimulation(nodes)
-        .force("link", d3.forceLink(links).id(d => d.id).distance(30).strength(1))
-        .force("charge", d3.forceManyBody().strength(-500))
-        .force("collision", d3.forceCollide().radius(100))
-        .force("center", d3.forceCenter(width / 2, height / 2))
-        .on("tick", ticked);
+    // Simulation statique : les nœuds restent fixes
+    nodes.forEach(node => {
+        // Définir directement la position projetée des nœuds à partir de leurs coordonnées
+        const [x, y] = projection([node.lon, node.lat]);
+        node.x = x;
+        node.y = y;
+    });
 
     const colorScale = d3.scaleOrdinal(d3.schemeCategory10);
 
+    // Créer les liens sans simulation
     const link = g.append("g")
         .attr("class", "links")
         .selectAll("line")
@@ -116,7 +117,11 @@ function initMap() {
         .attr("class", d => `link ${d.street}`)
         .attr("stroke", d => colorScale(d.street))
         .attr("stroke-width", 1.5)
-        .attr("opacity", 0.7);
+        .attr("opacity", 0.7)
+        .attr("x1", d => projection([d.source.lon, d.source.lat])[0])
+        .attr("y1", d => projection([d.source.lon, d.source.lat])[1])
+        .attr("x2", d => projection([d.target.lon, d.target.lat])[0])
+        .attr("y2", d => projection([d.target.lon, d.target.lat])[1]);
 
     const node = g.append("g")
         .attr("class", "nodes")
@@ -124,34 +129,39 @@ function initMap() {
         .data(nodes)
         .join("g");
 
+    // Ajouter des cercles pour représenter les nœuds
     node.append("circle")
         .attr("r", 15)
         .attr("class", "stop")
         .attr("fill", "#1f77b4")
         .attr("stroke", "#333")
         .attr("stroke-width", 1.5)
+        .attr("cx", d => d.x) // Utiliser les positions calculées
+        .attr("cy", d => d.y)
         .on("mouseover", (event, d) => {
             d3.select(event.currentTarget).attr("fill", "#ff7f0e");
             tooltip.style("display", "block")
-                   .html(`ID: ${d.id}<br>Latitude: ${d.lat}<br>Longitude: ${d.lon}`);
+                .html(`ID: ${d.id}<br>Latitude: ${d.lat}<br>Longitude: ${d.lon}`);
         })
         .on("mousemove", (event) => {
             tooltip.style("top", `${event.pageY + 10}px`)
-                   .style("left", `${event.pageX + 10}px`);
+                .style("left", `${event.pageX + 10}px`);
         })
         .on("mouseout", (event) => {
             d3.select(event.currentTarget).attr("fill", "#1f77b4");
             tooltip.style("display", "none");
         });
 
+    // Ajouter des étiquettes aux nœuds
     node.append("text")
         .attr("class", "label")
         .text(d => d.id)
-        .attr("x", 30)
-        .attr("y", 4)
-        .style("font-size", "20px")
+        .attr("x", d => d.x + 20) // Décaler les étiquettes horizontalement
+        .attr("y", d => d.y + 5) // Décaler les étiquettes verticalement
+        .style("font-size", "12px")
         .style("fill", "#333")
         .style("pointer-events", "none");
+
 
     function ticked() {
         link.attr("x1", d => d.source.x)
@@ -164,20 +174,162 @@ function initMap() {
 }
 
 // Initialiser la carte après le chargement des données
-document.addEventListener("DOMContentLoaded", function() {
+document.addEventListener("DOMContentLoaded", function () {
     fetch("get_streets_data.php")
-    .then(response => {
-        if (!response.ok) {
-            throw new Error("Erreur réseau lors de la récupération des données.");
-        }
-        return response.json();
-    })
-    .then(data => {
-        if (!data || Object.keys(data).length === 0) {
-            throw new Error("Données des rues et arrêts vides ou incorrectes.");
-        }
-        window.ruesEtArrets = data;
-        initMap();
-    })
-    .catch(error => console.error("Erreur lors du chargement des données : ", error));
+        .then(response => {
+            if (!response.ok) {
+                throw new Error("Erreur réseau lors de la récupération des données.");
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (!data || Object.keys(data).length === 0) {
+                throw new Error("Données des rues et arrêts vides ou incorrectes.");
+            }
+            window.ruesEtArrets = data;
+            initMap();
+        })
+        .catch(error => console.error("Erreur lors du chargement des données : ", error));
 });
+
+// Calculer les distances entre les arrêts
+function calculateDistances(stops) {
+    const graph = {};
+    const earthRadius = 6371; // Rayon de la Terre en kilomètres
+
+    for (const from in stops) {
+        graph[from] = {};
+        for (const to in stops) {
+            if (from !== to) {
+                const latFrom = (stops[from].lat * Math.PI) / 180;
+                const lonFrom = (stops[from].lon * Math.PI) / 180;
+                const latTo = (stops[to].lat * Math.PI) / 180;
+                const lonTo = (stops[to].lon * Math.PI) / 180;
+
+                const latDelta = latTo - latFrom;
+                const lonDelta = lonTo - lonFrom;
+
+                const a =
+                    Math.sin(latDelta / 2) ** 2 +
+                    Math.cos(latFrom) *
+                        Math.cos(latTo) *
+                        Math.sin(lonDelta / 2) ** 2;
+                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+                const distance = earthRadius * c;
+                graph[from][to] = distance;
+            }
+        }
+    }
+
+    return graph;
+}
+
+// Implémentation de Dijkstra
+function dijkstra(graph, start) {
+    const distances = {};
+    const previous = {};
+    const queue = new Set(Object.keys(graph));
+
+    // Initialiser les distances
+    for (const node in graph) {
+        distances[node] = Infinity;
+        previous[node] = null;
+    }
+    distances[start] = 0;
+
+    while (queue.size > 0) {
+        // Trouver le nœud avec la distance minimale
+        let current = null;
+        for (const node of queue) {
+            if (current === null || distances[node] < distances[current]) {
+                current = node;
+            }
+        }
+
+        queue.delete(current);
+
+        for (const neighbor in graph[current]) {
+            const alt = distances[current] + graph[current][neighbor];
+            if (alt < distances[neighbor]) {
+                distances[neighbor] = alt;
+                previous[neighbor] = current;
+            }
+        }
+    }
+
+    return { distances, previous };
+}
+
+// Reconstruire le chemin optimal
+function reconstructPath(previous, target) {
+    const path = [];
+    while (target) {
+        path.unshift(target);
+        target = previous[target];
+    }
+    return path;
+}
+
+// Assignation des arrêts aux cyclistes
+function assignStopsToCyclists(cyclists, stops, graph) {
+    const assignments = {};
+    const remainingStops = { ...stops };
+
+    for (const cyclist of cyclists) {
+        assignments[cyclist] = [];
+        let currentStop = Object.keys(remainingStops)[0]; // Prendre le premier arrêt
+        if (!currentStop) break;
+
+        assignments[cyclist].push(currentStop);
+        delete remainingStops[currentStop];
+
+        while (Object.keys(remainingStops).length > 0) {
+            let nextStop = null;
+            let minDistance = Infinity;
+
+            for (const stop in remainingStops) {
+                const distance = graph[currentStop][stop];
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    nextStop = stop;
+                }
+            }
+
+            if (nextStop !== null) {
+                assignments[cyclist].push(nextStop);
+                delete remainingStops[nextStop];
+                currentStop = nextStop;
+            } else {
+                break;
+            }
+        }
+    }
+
+    return assignments;
+}
+
+// Exemples de données
+const stops = {
+    Stop1: { lat: 48.8566, lon: 2.3522 }, // Paris
+    Stop2: { lat: 48.8584, lon: 2.2945 }, // Tour Eiffel
+    Stop3: { lat: 48.8738, lon: 2.295 }, // Arc de Triomphe
+    Stop4: { lat: 48.8606, lon: 2.3376 } // Louvre
+};
+
+// Calculer le graphe des distances
+const graph = calculateDistances(stops);
+
+// Exécuter Dijkstra pour un point de départ spécifique
+const start = "Stop1";
+const end = "Stop3";
+const { distances, previous } = dijkstra(graph, start);
+
+// Chemin optimal pour aller du point de départ à une destination
+const path = reconstructPath(previous, end);
+console.log("Chemin optimal:", path);
+
+// Assignation des arrêts aux cyclistes
+const cyclists = ["Cycliste1", "Cycliste2"];
+const assignments = assignStopsToCyclists(cyclists, stops, graph);
+console.log("Assignations des arrêts :", assignments);
