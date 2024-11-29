@@ -3,47 +3,46 @@ session_start();
 
 // Vérification de la connexion et du rôle RH
 if (!isset($_SESSION['user_id']) || $_SESSION['role_id'] != 2) {  // 2 = ID du rôle RH
-    header('Location: ../login.php'); // Redirection vers la page de connexion générale
+    header('Location: ../login.php'); // Redirection vers la page de connexion
     exit();
 }
 
-// Connexion à la base de données (à adapter avec vos informations)
-$servername = "localhost";
-$username_db = "root";  // Ou votre nom d'utilisateur
-$password_db = "";    // Ou votre mot de passe
-$dbname = "poubelle_verte";
+// Connexion à la base de données
+require '../config.php';
 
-$conn = new mysqli($servername, $username_db, $password_db, $dbname);
-if ($conn->connect_error) {
-    die("La connexion a échoué : " . $conn->connect_error);
-}
-
-// Requêtes pour récupérer les données du tableau de bord
 $sqlTotalUtilisateurs = "SELECT COUNT(*) as total FROM utilisateurs";
 $sqlTotalCyclistes = "SELECT COUNT(*) as total FROM utilisateurs WHERE role_id = 3";
-$sqlTotalMalade = "SELECT COUNT(*) as total FROM utilisateurs WHERE disponibilite = 'malade'"; // Utilisation de la colonne 'disponibilite'
+$sqlTotalMalade = "SELECT COUNT(*) as total FROM utilisateurs WHERE disponibilite = 'malade'";
+$sqlTotalConge = "SELECT COUNT(*) as total FROM utilisateurs WHERE disponibilite = 'congé'";
 
 $resultTotalUtilisateurs = $conn->query($sqlTotalUtilisateurs);
 $resultTotalCyclistes = $conn->query($sqlTotalCyclistes);
 $resultTotalMalade = $conn->query($sqlTotalMalade);
+$resultTotalConge = $conn->query($sqlTotalConge);
 
 $totalUtilisateurs = $resultTotalUtilisateurs->fetch_assoc()['total'];
 $totalCyclistes = $resultTotalCyclistes->fetch_assoc()['total'];
 $totalMalade = $resultTotalMalade->fetch_assoc()['total'];
+$totalConge = $resultTotalConge->fetch_assoc()['total'];
+
+
+$conn->close();
 ?>
 
 <!DOCTYPE html>
-<html>
+<html lang="fr">
 <head>
-    <title>Interface RH</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tableau de bord RH</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
 </head>
 <body>
     <div class="container mt-5">
-        <h1 class="text-center mb-4">Interface RH</h1>
-        <a href="../logout.php" class="btn btn-danger logout-btn">Déconnexion</a>
+        <h1 class="text-center mb-4">Interface RH - Tableau de bord</h1>
+        <a href="../logout.php" class="btn btn-danger">Déconnexion</a>
 
-        <div class="row">
+        <div class="row mt-4">
             <div class="col-md-3">
                 <ul class="nav flex-column">
                     <li class="nav-item">
@@ -55,31 +54,44 @@ $totalMalade = $resultTotalMalade->fetch_assoc()['total'];
                 </ul>
             </div>
             <div class="col-md-9">
-                <h2>Bienvenue, <?php echo $_SESSION['prenom']; ?>!</h2>
-
                 <h3>Tableau de bord</h3>
                 <div class="row">
-                    <div class="col-md-4">
-                        <div class="card">
+                    <!-- Total Utilisateurs -->
+                    <div class="col-md-6">
+                        <div class="card text-bg-primary mb-3">
                             <div class="card-body">
                                 <h5 class="card-title">Total Utilisateurs</h5>
-                                <p class="card-text"><?php echo $totalUtilisateurs; ?></p>
+                                <p class="card-text display-6"><?php echo $totalUtilisateurs; ?></p>
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-4">
-                        <div class="card">
+
+                    <!-- Total Cyclistes -->
+                    <div class="col-md-6">
+                        <div class="card text-bg-success mb-3">
                             <div class="card-body">
                                 <h5 class="card-title">Cyclistes</h5>
-                                <p class="card-text"><?php echo $totalCyclistes; ?></p>
+                                <p class="card-text display-6"><?php echo $totalCyclistes; ?></p>
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-4">
-                        <div class="card">
+
+                    <!-- Employés Malades -->
+                    <div class="col-md-6">
+                        <div class="card text-bg-warning mb-3">
                             <div class="card-body">
                                 <h5 class="card-title">Employés Malades</h5>
-                                <p class="card-text"><?php echo $totalMalade; ?></p>
+                                <p class="card-text display-6"><?php echo $totalMalade; ?></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Employés en Congé -->
+                    <div class="col-md-6">
+                        <div class="card text-bg-info mb-3">
+                            <div class="card-body">
+                                <h5 class="card-title">Employés en Congé</h5>
+                                <p class="card-text display-6"><?php echo $totalConge; ?></p>
                             </div>
                         </div>
                     </div>
