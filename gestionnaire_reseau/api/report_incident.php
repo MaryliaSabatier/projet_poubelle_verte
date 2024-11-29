@@ -1,10 +1,10 @@
 <?php
-// Activer l'affichage des erreurs pour le débogage
+// Activer les rapports d'erreurs pour le débogage
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
-// Déclarer que le contenu est JSON
+// Indiquer que le contenu est au format JSON
 header('Content-Type: application/json');
 
 // Inclure la configuration de la base de données

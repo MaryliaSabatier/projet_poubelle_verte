@@ -325,41 +325,38 @@ function reconstructPath(previous, target) {
     return path;
 }
 
-function assignStopsToCyclists(cyclists, stops, graph, incidents) {
-    // Si incidents n'est pas un tableau, l'initialiser vide
-    if (!Array.isArray(incidents)) {
-        console.error("Les incidents ne sont pas un tableau valide.");
-        incidents = []; // Initialiser incidents comme tableau vide
-    }
-
-    const blockedStops = incidents.map(incident => incident.stop_id);
-    const validStops = stops.filter(stop => !blockedStops.includes(stop.id));
-
+function assignStopsToCyclists(cyclists, stops, graph) {
     const assignments = {};
-    cyclists.forEach(cyclist => {
-        if (validStops.length > 0) {
-            assignments[cyclist] = [];
-            let currentStop = validStops.shift(); // Assigner le premier arrêt
-            assignments[cyclist].push(currentStop);
 
-            while (validStops.length > 0) {
+    cyclists.forEach(cyclist => {
+        if (stops.length > 0) {
+            assignments[cyclist] = [];
+            let currentStop = stops.shift(); // Retire et récupère le premier arrêt
+            assignments[cyclist].push({ id: currentStop.id }); // Assurez-vous d'ajouter un objet avec un ID
+
+            while (stops.length > 0) {
                 let nextStop = null;
                 let minDistance = Infinity;
 
-                validStops.forEach(stop => {
-                    const distance = graph[currentStop.id]?.[stop.id] ?? Infinity;
-                    if (distance < minDistance) {
-                        minDistance = distance;
-                        nextStop = stop;
+                stops.forEach((stop, index) => {
+                    if (
+                        currentStop.id &&
+                        stop.id &&
+                        graph[currentStop.id] &&
+                        graph[currentStop.id][stop.id] !== undefined
+                    ) {
+                        const distance = graph[currentStop.id][stop.id];
+                        if (distance < minDistance) {
+                            minDistance = distance;
+                            nextStop = index;
+                        }
                     }
                 });
 
-                if (nextStop) {
-                    assignments[cyclist].push(nextStop);
-                    validStops.splice(validStops.indexOf(nextStop), 1);
-                    currentStop = nextStop;
-                } else {
-                    break;
+                if (nextStop !== null && stops[nextStop]) {
+                    assignments[cyclist].push({ id: stops[nextStop].id });
+                    currentStop = stops[nextStop];
+                    stops.splice(nextStop, 1);
                 }
             }
         }
@@ -367,6 +364,8 @@ function assignStopsToCyclists(cyclists, stops, graph, incidents) {
 
     return assignments;
 }
+
+
 
 // Calculer le graphe des distances
 const graph = calculateDistances(stops);
@@ -393,10 +392,22 @@ function drawTours(tours, stops, projection) {
     const colorScale = d3.scaleOrdinal(d3.schemeCategory10);
 
     for (const [cyclist, tour] of Object.entries(tours)) {
-        const pathData = tour.map(stop => {
-            const { lon, lat } = stops[stop.id]; // Identifier correctement les arrêts
-            return projection([lon, lat]);
-        });
+        const pathData = tour
+            .map(stop => {
+                const stopData = stops[stop.id];
+                if (!stopData) {
+                    console.error(`Arrêt introuvable pour l'ID : ${stop.id}`);
+                    return null; // Ignore cet arrêt
+                }
+                const { lon, lat } = stopData;
+                return projection([lon, lat]);
+            })
+            .filter(point => point !== null); // Supprimer les points non définis
+
+        if (pathData.length === 0) {
+            console.warn(`Aucun chemin valide pour le cycliste ${cyclist}`);
+            continue;
+        }
 
         g.append("path")
             .datum(pathData)
@@ -412,6 +423,7 @@ function drawTours(tours, stops, projection) {
             .text(`${cyclist}`);
     }
 }
+
 
 const stopsArray = Object.entries(stops).map(([id, stop]) => ({
     id,
@@ -460,6 +472,8 @@ document.getElementById("recalculate-button").addEventListener("click", () => {
     const activeIncidents = [
         { stop_id: "Stop2", type: "rue_bloquee" } // Exemple de données
     ];
+    console.log("Données envoyées au serveur :", JSON.stringify({ incidents: activeIncidents }));
+
 
     // Vérifier que les incidents sont correctement définis pour le débogage
     console.log("Incidents actifs envoyés :", activeIncidents);
