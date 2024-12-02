@@ -11,7 +11,7 @@ class Arret {
     }
 
     isAdjacent(arretId) {
-        return this.adjacents.some(adjacent => adjacent.id === arretId);
+        return this.adjacents.includes(arretId);
     }
 }
 

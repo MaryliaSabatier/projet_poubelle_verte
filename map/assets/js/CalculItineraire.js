@@ -4,33 +4,50 @@ async function fetchArrets() {
         throw new Error('Erreur lors de la récupération des arrêts');
     }
     const data = await response.json();
-    console.log("Données brutes reçues de l'API :", data); // Log pour analyser les données
+    console.log("Données brutes reçues de l'API :", data); // Vérifiez ici
     return data;
 }
-
 
 async function initializeArrets() {
     try {
         const rawArrets = await fetchArrets();
+
         if (!rawArrets || !rawArrets.data) {
             throw new Error('Les données reçues de l\'API ne contiennent pas de clé "data".');
         }
+
         const arrets = rawArrets.data.map(arret => {
+            console.log("Traitement de l'arrêt :", arret);
+
+            // Vérification des coordonnées
+            if (!arret.latitude || !arret.longitude) {
+                throw new Error(`Coordonnées manquantes pour l'arrêt ${arret.arret_id}`);
+            }
+
+            // Vérification et initialisation des adjacents
             if (!Array.isArray(arret.adjacents)) {
-                console.warn(`L'arrêt ${arret.id} n'a pas de liste d'adjacents valide.`, arret);
+                console.warn(`L'arrêt ${arret.arret_id} n'a pas une liste d'adjacents valide. Initialisation à [].`);
                 arret.adjacents = [];
             }
-            if (arret.lat == null || arret.lon == null) {
-                throw new Error(`Coordonnées manquantes pour l'arrêt ${arret.id}`);
-            }
-            return new Arret(arret.id, arret.lat, arret.lon, arret.adjacents);
+
+            // Création d'une instance de la classe Arret
+            return new Arret(
+                arret.arret_id,
+                parseFloat(arret.latitude),
+                parseFloat(arret.longitude),
+                arret.adjacents
+            );
         });
+
         return arrets;
     } catch (error) {
         console.error('Erreur lors de l\'initialisation des arrêts :', error);
         throw error;
     }
 }
+
+
+
 
 // Définition de la classe CheminPossibleDto
 class CheminPossibleDto {
@@ -52,7 +69,6 @@ class CheminPossibleDto {
     removeArret() {
         this.arrets.pop();
     }
-
     /**
      * Retourne le dernier arrêt du chemin
      * @returns {Object} Dernier arrêt
@@ -103,37 +119,35 @@ class CalculItineraire {
      * @param {Array} cheminPossibleDtos - Liste des chemins possibles
      */
     static chercheChemin(arret, numeroChemin, cheminPossibleDtos) {
-        if (arret.adjacents.length > 1) { // Remplacez "arret.arretAdjacents" par "arret.adjacents"
-            // Cas d'un arrêt de liaison
-            if (arret.adjacents.length === 2) { // Remplacez "arret.arretAdjacents" par "arret.adjacents"
-                arret.adjacents.forEach((arretAdjacent) => { // Remplacez "arret.arretAdjacents" par "arret.adjacents"
-                    if (!cheminPossibleDtos[numeroChemin].arrets.includes(arretAdjacent)) {
-                        cheminPossibleDtos[numeroChemin].arrets.push(arretAdjacent);
-                        this.chercheChemin(arretAdjacent, numeroChemin, cheminPossibleDtos);
-                    }
-                });
-            } else {
-                const arrets = new Set();
-                arret.adjacents.forEach((arretAdjacent) => { // Remplacez "arret.arretAdjacents" par "arret.adjacents"
-                    if (!cheminPossibleDtos[numeroChemin].arrets.includes(arretAdjacent)) {
-                        arrets.add(arretAdjacent);
-                    }
-                });
-
-                if (arrets.size > 0) {
-                    const sauvegarde = JSON.parse(JSON.stringify(cheminPossibleDtos[numeroChemin]));
-                    cheminPossibleDtos.splice(numeroChemin, 1);
-
-                    Array.from(arrets).forEach((arret1) => {
-                        const nouveauChemin = JSON.parse(JSON.stringify(sauvegarde));
-                        nouveauChemin.arrets.push(arret1);
-                        cheminPossibleDtos.push(nouveauChemin);
-                        this.chercheChemin(arret1, cheminPossibleDtos.indexOf(nouveauChemin), cheminPossibleDtos);
-                    });
+        if (!arret || !arret.adjacents || arret.adjacents.length === 0) {
+            console.warn(`L'arrêt ${arret?.id || 'inconnu'} n'a pas d'adjacents.`);
+            return;
+        }
+    
+        // Cas où l'arrêt a deux adjacents
+        if (arret.adjacents.length === 2) {
+            arret.adjacents.forEach(arretAdjacent => {
+                if (!cheminPossibleDtos[numeroChemin].arrets.includes(arretAdjacent)) {
+                    cheminPossibleDtos[numeroChemin].arrets.push(arretAdjacent);
+                    this.chercheChemin(arretAdjacent, numeroChemin, cheminPossibleDtos);
                 }
+            });
+        } else {
+            const arretsNonVisites = arret.adjacents.filter(adj => !cheminPossibleDtos[numeroChemin].arrets.includes(adj));
+            if (arretsNonVisites.length > 0) {
+                const sauvegarde = JSON.parse(JSON.stringify(cheminPossibleDtos[numeroChemin]));
+                cheminPossibleDtos.splice(numeroChemin, 1);
+    
+                arretsNonVisites.forEach(arret1 => {
+                    const nouveauChemin = JSON.parse(JSON.stringify(sauvegarde));
+                    nouveauChemin.arrets.push(arret1);
+                    cheminPossibleDtos.push(nouveauChemin);
+                    this.chercheChemin(arret1, cheminPossibleDtos.indexOf(nouveauChemin), cheminPossibleDtos);
+                });
             }
         }
     }
+    
 
     /**
      * Trie les chemins pour obtenir le chemin le plus court par arrêt
@@ -334,5 +348,6 @@ initializeArrets()
 
 export { CheminPossibleDto, ramassageCyclisteVelo, CalculItineraire };
 export default CalculItineraire;
-import Arret from './arret.js';
+import Arret from '../../assets/js/arrets.js';
+
 

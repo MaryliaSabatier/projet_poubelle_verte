@@ -47,7 +47,6 @@ async function initLeafletMap() {
 }
 
 
-// Fonction pour afficher les données rues et arrêts sur la carte
 function afficherCarte(map, rues, ruesArrets) {
     const arretsCoords = {};
     const groupedPoints = {}; // Regrouper les arrêts par rue
@@ -55,11 +54,15 @@ function afficherCarte(map, rues, ruesArrets) {
 
     // Construire un dictionnaire des coordonnées des arrêts
     rues.forEach(arret => {
-        arretsCoords[arret.id] = {
-            lat: arret.latitude,
-            lon: arret.longitude,
-            libelle: arret.libelle
-        };
+        if (!arret.latitude || !arret.longitude) {
+            console.warn(`Arrêt ${arret.id} sans coordonnées valides.`);
+        } else {
+            arretsCoords[arret.id] = {
+                lat: parseFloat(arret.latitude),
+                lon: parseFloat(arret.longitude),
+                libelle: arret.libelle
+            };
+        }
     });
 
     // Regrouper les arrêts par rue
@@ -118,6 +121,7 @@ function afficherCarte(map, rues, ruesArrets) {
         });
     }
 }
+
 
 // Initialisation de la carte après le chargement du DOM
 document.addEventListener('DOMContentLoaded', initLeafletMap);
