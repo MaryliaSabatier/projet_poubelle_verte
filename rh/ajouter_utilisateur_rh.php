@@ -31,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $nom = htmlspecialchars($_POST['nom']);
     $prenom = htmlspecialchars($_POST['prenom']);
     $email = filter_var($_POST['email'], FILTER_SANITIZE_EMAIL);
-    $password = $_POST['password']; 
+    $password = $_POST['password'];
     $roleId = $_POST['role_id'];
     $dateEmbauche = $_POST['date_embauche']; // Optionnel, seulement pour les cyclistes
     $disponibilite = $_POST['disponibilite']; // Optionnel, seulement pour les cyclistes
@@ -85,15 +85,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
 <!DOCTYPE html>
 <html>
+
 <head>
     <title>Ajouter un utilisateur (RH)</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
 </head>
+
 <body>
     <div class="container mt-5">
         <h2>Ajouter un utilisateur (RH)</h2>
 
-        <?php if (!empty($error)) { echo "<div class='alert alert-danger'>$error</div>"; } ?>
+        <?php if (!empty($error)) {
+            echo "<div class='alert alert-danger'>$error</div>";
+        } ?>
 
         <form method="POST">
             <div class="mb-3">
@@ -130,6 +134,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <div class="mb-3">
                     <label for="disponibilite" class="form-label">Disponibilité</label>
                     <textarea class="form-control" id="disponibilite" name="disponibilite"><?php echo $disponibilite; ?></textarea>
+                    <small class="form-text text-muted">Veuillez écrire "disponible" dans cette case.</small>
                 </div>
             </div>
 
@@ -156,4 +161,5 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         toggleCyclisteFields();
     </script>
 </body>
+
 </html>

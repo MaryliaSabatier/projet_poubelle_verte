@@ -183,7 +183,7 @@ $resultTournees = $conn->query($sqlTournees);
                                     Lancer la tournée
                                     </button>
                                 </form>
-                                <a href="trajet.php?tournee_id=<?php echo $row['tournee_id']; ?>" class="btn btn-info btn-sm">Visualisation Trajet</a>
+                                <a href="trajet2.php?tournee_id=<?php echo $row['tournee_id']; ?>" class="btn btn-info btn-sm">Visualisation Trajet</a>
 
                                 <!-- Si pas assez de vélos, afficher le bouton pour aller à la gestion des vélos -->
                                 <?php if ($row['nombre_velos'] < $row['nombre_cyclistes']): ?>

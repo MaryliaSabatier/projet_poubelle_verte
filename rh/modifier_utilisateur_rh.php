@@ -159,7 +159,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <div class="mb-3">
                     <label for="disponibilite" class="form-label">Disponibilité</label>
                     <textarea class="form-control" id="disponibilite" name="disponibilite"><?php echo $disponibilite; ?></textarea>
-                </div>
+                    <small class="form-text text-muted">Veuillez écrire "disponible" dans cette case.</small>
+=                </div>
             </div>
 
             <button type="submit" class btn btn-primary>Modifier</button>
