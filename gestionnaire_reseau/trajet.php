@@ -953,6 +953,8 @@ $dsn = "mysql:host=localhost;dbname=poubelle_verte;charset=utf8";
 $username = "root";
 $password = "";
 
+
+
 try {
     $pdo = new PDO($dsn, $username, $password, [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
@@ -1040,6 +1042,34 @@ try {
 } catch (PDOException $e) {
     die("Erreur lors de la récupération des incidents : " . $e->getMessage());
 }
+// Récupération des incidents avec les arrêts et les rues associés
+// Récupérer les incidents avec les arrêts et rues associés
+// Récupération des incidents enregistrés (uniquement non résolus)
+// Récupération des incidents enregistrés (uniquement non résolus)
+$sqlIncidents = "
+    SELECT 
+        i.id, 
+        i.tournee_id, 
+        i.type_incident, 
+        i.date, 
+        i.heure, 
+        i.description, 
+        i.resolution, 
+        i.resolved_at, 
+        t.date AS tournee_date, 
+        t.heure_debut, 
+        t.heure_fin,
+        a.libelle AS arret_libelle, -- Nom de l'arrêt associé
+        r.libelle AS rue_libelle   -- Nom de la rue associée
+    FROM incidents i
+    LEFT JOIN tournees t ON i.tournee_id = t.id
+    LEFT JOIN arrets a ON i.arret_id = a.id
+    LEFT JOIN rues r ON i.rue_id = r.id
+    WHERE i.resolved_at IS NULL -- Filtrer uniquement les incidents non résolus
+    ORDER BY i.date DESC, i.heure DESC
+";
+$resultIncidents = $conn->query($sqlIncidents);
+
 ?>
 <!DOCTYPE html>
 <html>
@@ -1111,9 +1141,14 @@ try {
                     <ul class="list-group">
                         <?php foreach ($incidents as $incident): ?>
                             <li class="list-group-item">
-                                <strong><?php echo htmlspecialchars($incident['arret']); ?></strong> -
-                                <?php echo htmlspecialchars($incident['description']); ?>
-                                <em>(<?php echo htmlspecialchars($incident['date']); ?>)</em>
+                                <strong>Arrêt :</strong>
+                                <?php echo $incident['arret_libelle'] ?: 'Aucun'; ?>,
+                                <strong>Rue :</strong>
+                                <?php echo $incident['rue_libelle'] ?: 'Aucune'; ?><br>
+                                <strong>Description :</strong>
+                                <?php echo htmlspecialchars($incident['description']); ?><br>
+                                <strong>Date :</strong>
+                                <?php echo htmlspecialchars($incident['date']); ?>
                             </li>
                         <?php endforeach; ?>
                     </ul>
@@ -1122,6 +1157,7 @@ try {
                 <?php endif; ?>
             </div>
         </div>
+
 
 
         <!-- Liste des agents -->
