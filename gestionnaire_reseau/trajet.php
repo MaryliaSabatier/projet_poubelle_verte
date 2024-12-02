@@ -1058,7 +1058,7 @@ foreach ($allRoutes as $route) {
 </head>
 <body>
     <div class="container mt-5">
-        <h1 class="text-center text-primary mb-4">Itinéraires avec 4 Nouveaux Arrêts</h1>
+        <h1 class="text-center text-primary mb-4">Itinéraires des vélos pour la tournée</h1>
 
         <!-- Formulaire -->
         <div class="card mb-4">
