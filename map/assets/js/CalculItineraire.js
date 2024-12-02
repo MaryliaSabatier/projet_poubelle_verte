@@ -10,34 +10,41 @@ async function fetchArrets() {
 
 async function initializeArrets() {
     try {
+        // Récupérer les données des arrêts via l'API
         const rawArrets = await fetchArrets();
 
+        // Vérification si les données sont valides et contiennent une clé "data"
         if (!rawArrets || !rawArrets.data) {
             throw new Error('Les données reçues de l\'API ne contiennent pas de clé "data".');
         }
 
+        // Traitement des arrêts
         const arrets = rawArrets.data.map(arret => {
             console.log("Traitement de l'arrêt :", arret);
 
-            // Vérification des coordonnées
+            // Validation des coordonnées
             if (!arret.latitude || !arret.longitude) {
-                throw new Error(`Coordonnées manquantes pour l'arrêt ${arret.arret_id}`);
+                console.error(`Coordonnées manquantes pour l'arrêt ${arret.arret_id}.`);
+                // Remplace les coordonnées manquantes par des valeurs par défaut (si applicable)
+                return null; // Ou ignorer cet arrêt
             }
 
-            // Vérification et initialisation des adjacents
+            // Validation et initialisation de la liste des adjacents
             if (!Array.isArray(arret.adjacents)) {
-                console.warn(`L'arrêt ${arret.arret_id} n'a pas une liste d'adjacents valide. Initialisation à [].`);
+                console.warn(`L'arrêt ${arret.id} n'a pas une liste d'adjacents valide.`);
                 arret.adjacents = [];
             }
 
-            // Création d'une instance de la classe Arret
+            // Création et retour d'une instance de la classe Arret
             return new Arret(
                 arret.arret_id,
                 parseFloat(arret.latitude),
                 parseFloat(arret.longitude),
                 arret.adjacents
             );
-        });
+        }).filter(arret => arret !== null); // Filtre les arrêts invalides (par ex. ceux avec des coordonnées manquantes)
+
+        console.log("Tous les arrêts initialisés avec succès :", arrets);
 
         return arrets;
     } catch (error) {
@@ -45,9 +52,6 @@ async function initializeArrets() {
         throw error;
     }
 }
-
-
-
 
 // Définition de la classe CheminPossibleDto
 class CheminPossibleDto {

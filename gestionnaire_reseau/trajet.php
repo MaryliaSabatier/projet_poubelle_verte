@@ -941,11 +941,37 @@ $streets = array(
         "Gare du Nord"
     )
 );
-// Paramètres
+
+// Connexion à la base de données
+$dsn = "mysql:host=localhost;dbname=poubelle_verte;charset=utf8";
+$username = "root";
+$password = "";
+
+try {
+    $pdo = new PDO($dsn, $username, $password, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+    ]);
+} catch (PDOException $e) {
+    die("Erreur de connexion : " . $e->getMessage());
+}
+
+// Récupérer les vélos disponibles
+$sqlVelo = "SELECT id, numero FROM velos WHERE etat = 'en_cours_utilisation'";
+$velosDisponibles = $pdo->query($sqlVelo)->fetchAll();
+
+// Récupérer les utilisateurs
+$sqlUtilisateur = "SELECT id, nom, prenom FROM utilisateurs WHERE disponibilite = 'en tournée'";
+$utilisateursDisponibles = $pdo->query($sqlUtilisateur)->fetchAll();
+
+// Nombre d'agents = nombre de vélos disponibles ou nombre d'utilisateurs disponibles, le plus petit
+$numAgents = min(count($velosDisponibles), count($utilisateursDisponibles));
+
+// Autres paramètres
 $groupSize = 4; // Nombre d'arrêts avant de revenir à "Porte d'Ivry"
 $startStop = "Porte d'Ivry"; // Point de départ
 $stopsToVisit = array_keys($stops);
-$visitedStops = array();
+$visitedStops = [];
 
 // Retirer le point de départ des arrêts à visiter
 if (($key = array_search($startStop, $stopsToVisit)) !== false) {
@@ -953,11 +979,10 @@ if (($key = array_search($startStop, $stopsToVisit)) !== false) {
 }
 
 // Générer tous les itinéraires possibles
-$allRoutes = array();
+$allRoutes = [];
 while (!empty($stopsToVisit)) {
-    $route = array();
-    $route[] = $startStop;
-    $newStops = array();
+    $route = [$startStop];
+    $newStops = [];
 
     foreach ($stopsToVisit as $stop) {
         if (count($newStops) < $groupSize) {
@@ -985,16 +1010,14 @@ while (!empty($stopsToVisit)) {
     $allRoutes[] = $route;
 }
 
-// Permettre de spécifier le nombre d'agents
-$numAgents = isset($_GET['numAgents']) ? intval($_GET['numAgents']) : 1;
-if ($numAgents < 1) {
-    $numAgents = 1;
+// Distribuer les itinéraires entre les agents
+$itineraries = [];
+for ($i = 0; $i < $numAgents; $i++) {
+    $itineraries[$i] = [];
 }
 
-// Distribuer les itinéraires entre les agents
-$itineraries = array();
-for ($i = 0; $i < $numAgents; $i++) {
-    $itineraries[$i] = array();
+if ($numAgents <= 0) {
+    die("Erreur : le nombre d'agents doit être supérieur à zéro.");
 }
 
 $routeIndex = 0;
@@ -1034,11 +1057,25 @@ foreach ($allRoutes as $route) {
 
 <h1>Itinéraires avec 4 Nouveaux Arrêts</h1>
 
+<!-- Formulaire -->
 <form method="get">
-    <label for="numAgents">Nombre d'agents :</label>
-    <input type="number" id="numAgents" name="numAgents" value="<?php echo $numAgents; ?>" min="1">
-    <input type="submit" value="Calculer les itinéraires">
+    <label for="numAgents">Nombre d'agents (automatique) :</label>
+    <input type="number" id="numAgents" name="numAgents" value="<?php echo $numAgents; ?>" min="1" readonly>
+    <input type="submit" value="Actualiser les itinéraires">
 </form>
+
+<!-- Liste des agents -->
+<h2>Agents et leurs vélos attribués</h2>
+<ul>
+    <?php
+    for ($i = 0; $i < $numAgents; $i++) {
+        $agent = $utilisateursDisponibles[$i];
+        $velo = $velosDisponibles[$i];
+        echo "<li>Agent " . ($i + 1) . ": " . htmlspecialchars($agent['prenom'] . " " . $agent['nom']) .
+            " (Vélo #" . htmlspecialchars($velo['numero']) . ")</li>";
+    }
+    ?>
+</ul>
 
 <!-- Sélection de l'agent -->
 <label for="agentSelect">Sélectionnez un agent :</label>
@@ -1060,7 +1097,7 @@ foreach ($itineraries as $agent => $routes) {
         echo "<h3>Route " . ($routeIndex + 1) . "</h3>";
         echo "<ul>";
         foreach ($route as $stop) {
-            echo "<li>" . $stop . "</li>";
+            echo "<li>" . htmlspecialchars($stop) . "</li>";
         }
         echo "</ul>";
     }

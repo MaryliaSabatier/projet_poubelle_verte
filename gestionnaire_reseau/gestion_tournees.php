@@ -16,6 +16,8 @@ $dbname = "poubelle_verte";
 $conn = new mysqli($servername, $username_db, $password_db, $dbname);
 if ($conn->connect_error) {
     die("La connexion a échoué : " . $conn->connect_error);
+} else {
+    echo "Connexion réussie à la base de données.<br>";
 }
 
 // Traitement pour créer une nouvelle tournée unique avec des cyclistes disponibles et des vélos
@@ -28,12 +30,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['create_tournee'])) {
     // Récupérer les cyclistes disponibles
     $sqlCyclistesDisponibles = "SELECT id FROM utilisateurs WHERE role_id = 3 AND disponibilite = 'disponible'";
     $resultCyclistesDisponibles = $conn->query($sqlCyclistesDisponibles);
+    if (!$resultCyclistesDisponibles || $resultCyclistesDisponibles->num_rows == 0) {
+        echo "<div class='alert alert-warning'>Aucun cycliste disponible trouvé. Vérifiez les données dans la table `utilisateurs`.</div>";
+    }
 
     // Récupérer les vélos disponibles
     $sqlVelosDisponibles = "SELECT id FROM velos WHERE etat = 'operationnel'";
     $resultVelosDisponibles = $conn->query($sqlVelosDisponibles);
+    if (!$resultVelosDisponibles || $resultVelosDisponibles->num_rows == 0) {
+        echo "<div class='alert alert-warning'>Aucun vélo disponible trouvé. Vérifiez les données dans la table `velos`.</div>";
+    }
 
-    if ($resultCyclistesDisponibles && $resultCyclistesDisponibles->num_rows > 0 && $resultVelosDisponibles && $resultVelosDisponibles->num_rows >= $resultCyclistesDisponibles->num_rows) {
+    if ($resultCyclistesDisponibles && $resultVelosDisponibles &&
+        $resultCyclistesDisponibles->num_rows > 0 &&
+        $resultVelosDisponibles->num_rows >= $resultCyclistesDisponibles->num_rows) {
         while ($cycliste = $resultCyclistesDisponibles->fetch_assoc()) {
             $cyclisteId = $cycliste['id'];
 
@@ -114,58 +124,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['delete_tournee'])) {
     echo "<div class='alert alert-success'>Tournée supprimée avec succès, cyclistes et vélos disponibles.</div>";
 }
 
-// Traitement pour réassigner des vélos aux cyclistes d'une tournée existante
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['reassigner_velos'])) {
-    $tourneeId = $_POST['tournee_id'];
-
-    // Récupérer les cyclistes de la tournée
-    $sqlCyclistesTournee = "SELECT cycliste_id FROM tournees_cyclistes WHERE tournee_id = ?";
-    $stmt = $conn->prepare($sqlCyclistesTournee);
-    $stmt->bind_param("i", $tourneeId);
-    $stmt->execute();
-    $result = $stmt->get_result();
-
-    // Récupérer les cyclistes de la tournée
-    $sqlCyclistesTournee = "SELECT cycliste_id FROM tournees_cyclistes WHERE tournee_id = ?";
-    $stmt = $conn->prepare($sqlCyclistesTournee);
-    $stmt->bind_param("i", $tourneeId);
-    $stmt->execute();
-    $result = $stmt->get_result();
-
-    // Récupérer les vélos disponibles
-    $sqlVelosDisponibles = "SELECT id FROM velos WHERE etat = 'operationnel'";
-    $resultVelosDisponibles = $conn->query($sqlVelosDisponibles);
-
-    if ($result->num_rows > 0 && $resultVelosDisponibles->num_rows >= $result->num_rows) {
-        // Supprimer les anciennes affectations de vélos
-        $stmtSuppressionAncienneAffectation = $conn->prepare("DELETE FROM tournees_cyclistes WHERE tournee_id = ?");
-        $stmtSuppressionAncienneAffectation->bind_param("i", $tourneeId);
-        $stmtSuppressionAncienneAffectation->execute();
-
-        while ($cycliste = $result->fetch_assoc()) {
-            $cyclisteId = $cycliste['cycliste_id'];
-
-            // Récupérer un vélo disponible pour ce cycliste
-            $velo = $resultVelosDisponibles->fetch_assoc();
-            $veloId = $velo['id'];
-
-            // Associer le cycliste et le nouveau vélo à la tournée
-            $stmt = $conn->prepare("INSERT INTO tournees_cyclistes (tournee_id, cycliste_id, velo_id) VALUES (?, ?, ?)");
-            $stmt->bind_param("iii", $tourneeId, $cyclisteId, $veloId);
-            $stmt->execute();
-
-            // Mettre à jour l'état du vélo
-            $updateVelo = $conn->prepare("UPDATE velos SET etat = 'en_cours_utilisation' WHERE id = ?");
-            $updateVelo->bind_param("i", $veloId);
-            $updateVelo->execute();
-        }
-
-        echo "<div class='alert alert-success'>Les vélos ont été réassignés avec succès !</div>";
-    } else {
-        echo "<div class='alert alert-warning'>Pas assez de vélos disponibles pour réassigner tous les cyclistes.</div>";
-    }
-}
-
 // Récupération des tournées
 $sqlTournees = "SELECT t.id AS tournee_id, t.date, t.heure_debut, t.etat, COUNT(tc.cycliste_id) AS nombre_cyclistes, 
                 (SELECT COUNT(v.id) FROM tournees_cyclistes tc2 LEFT JOIN velos v ON tc2.velo_id = v.id WHERE tc2.tournee_id = t.id) AS nombre_velos
@@ -202,7 +160,7 @@ $resultTournees = $conn->query($sqlTournees);
                 </ul>
             </div>
             <div class="col-md-9">
-                <h2>Bienvenue, <?php echo $_SESSION['prenom']; ?>!</h2>
+                <h2>Bienvenue, <?php echo htmlspecialchars($_SESSION['prenom']); ?>!</h2>
 
                 <!-- Formulaire pour créer une nouvelle tournée -->
                 <form method="POST">
@@ -225,6 +183,7 @@ $resultTournees = $conn->query($sqlTournees);
                                     Lancer la tournée
                                     </button>
                                 </form>
+                                <a href="trajet.php?tournee_id=<?php echo $row['tournee_id']; ?>" class="btn btn-info btn-sm">Visualisation Trajet</a>
 
                                 <!-- Si pas assez de vélos, afficher le bouton pour aller à la gestion des vélos -->
                                 <?php if ($row['nombre_velos'] < $row['nombre_cyclistes']): ?>
@@ -249,7 +208,6 @@ $resultTournees = $conn->query($sqlTournees);
                 <?php else: ?>
                     <p>Aucune tournée n'est disponible pour le moment.</p>
                 <?php endif; ?>
-
             </div>
         </div>
     </div>

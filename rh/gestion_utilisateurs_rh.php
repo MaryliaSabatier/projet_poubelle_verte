@@ -113,6 +113,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['modifier_utilisateur'
                     </li>
                 </ul>
             </div>
+            <a href="ajouter_utilisateur_rh.php" class="btn btn-danger float-end">Ajouter un utilisateur</a>
+
             <div class="col-md-9">
                 <h3>Gestion des utilisateurs</h3>
                 <table class="table table-striped">

@@ -50,6 +50,11 @@ if (isset($_GET['action']) && $_GET['action'] == 'supprimer' && isset($_GET['id'
     <div class="container mt-5">
         <h2>Gestion des utilisateurs</h2>
 
+                <!-- Bouton pour retourner au tableau de bord -->
+                <div class="mb-3">
+            <a href="admin.php" class="btn btn-secondary">Retour au tableau de bord</a>
+        </div>
+
         <?php if ($resultUtilisateurs->num_rows > 0): ?>
             <table class="table table-striped">
                 <thead>

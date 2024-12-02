@@ -11,14 +11,15 @@ async function initLeafletMap() {
     console.log("Initialisation de la carte Leaflet");
 
     try {
-        // Récupérer les données des APIs et extraire la clé `data`
         const ruesResponse = await fetchData('api/arrets.php');
+        console.log("Données des arrêts brutes :", ruesResponse);
         const rues = ruesResponse.data; // Extraire le tableau réel
         console.log("Données des arrêts (rues):", rues);
 
         const ruesArretsResponse = await fetchData('api/rues_arrets.php');
+        console.log("Données brutes rues/arrets :", ruesArretsResponse);
         const ruesArrets = ruesArretsResponse.data; // Extraire le tableau réel
-        console.log("Données rues/arrets:", ruesArrets);
+        console.log("Données rues/arrets :", ruesArrets);
 
         // Vérification des données
         if (!Array.isArray(rues)) {
@@ -70,18 +71,20 @@ function afficherCarte(map, rues, ruesArrets) {
         const rue = rueArret.rue.libelle; // Nom de la rue
         const arret = rueArret.arret;
         const coords = arretsCoords[arret.id];
-
+    
         if (!coords) {
             console.warn(`Coordonnées non trouvées pour l'arrêt : ${arret.id}`);
             return;
         }
-
+    
         if (!groupedPoints[rue]) {
             groupedPoints[rue] = [];
         }
         groupedPoints[rue].push([coords.lat, coords.lon]);
+    
+        console.log(`Régroupement : Rue = ${rue}, Arrêt = ${arret.id}, Coordonnées = `, coords);
     });
-
+    
     // Définir une palette de couleurs pour les rues
     const colorPalette = [
         '#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF', '#00FFFF',
