@@ -152,6 +152,13 @@ if ($resultVerification->num_rows === 0) {
             var latlngs = [];
             var markers = [];
 
+            // Ajout des marqueurs pour chaque arrêt
+            pointsPassage.forEach((point) => {
+                latlngs.push([point.latitude, point.longitude]);
+
+                var marker = L.marker([point.latitude, point.longitude]).addTo(map);
+                marker.bindPopup(`<b>${point.nom_arret}</b>`);
+            });
 
             if (latlngs.length > 0) {
                 var polyline = L.polyline(latlngs, {
@@ -192,30 +199,6 @@ if ($resultVerification->num_rows === 0) {
                     console.warn("Aucun point de passage disponible pour tracer l'itinéraire.");
                     alert("Aucun itinéraire à afficher pour cette tournée.");
                 }
-            }
-            // Géolocalisation en temps réel
-            var userMarker = null;
-
-            function updatePosition(position) {
-                var lat = position.coords.latitude;
-                var lng = position.coords.longitude;
-
-                // Mise à jour du marqueur de l'utilisateur
-                if (userMarker) {
-                    userMarker.setLatLng([lat, lng]);
-                } else {
-                    userMarker = L.marker([lat, lng], {
-                        icon: L.icon({
-                            iconUrl: 'user-icon.png',
-                            iconSize: [32, 32]
-                        })
-                    }).addTo(map);
-                }
-
-                document.getElementById('current-location').textContent = `Latitude: ${lat}, Longitude: ${lng}`;
-
-                // Calculer l'arrêt suivant et précédent
-                calculateNextAndPreviousStops(lat, lng);
             }
 
             function calculateNextAndPreviousStops(lat, lng) {
