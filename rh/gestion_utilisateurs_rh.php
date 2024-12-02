@@ -91,32 +91,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['modifier_utilisateur'
 ?>
 <!DOCTYPE html>
 <html lang="fr">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestion des utilisateurs (RH)</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
 </head>
+
 <body>
     <div class="container mt-5">
-        <h1 class="text-center mb-4">Interface RH - Gestion des utilisateurs</h1>
+        <h1 class="text-center mb-4">Gestion des utilisateurs</h1>
         <a href="../logout.php" class="btn btn-danger float-end">Déconnexion</a>
 
         <div class="row mt-5">
-            <div class="col-md-3">
-                <ul class="nav flex-column">
-                    <li class="nav-item">
-                        <a class="nav-link" href="rh.php">Tableau de bord</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link active" href="gestion_utilisateurs_rh.php">Gestion des utilisateurs</a>
-                    </li>
-                </ul>
-            </div>
-            <a href="ajouter_utilisateur_rh.php" class="btn btn-danger float-end">Ajouter un utilisateur</a>
 
-            <div class="col-md-9">
-                <h3>Gestion des utilisateurs</h3>
+        <div class="col-md-12">
+                <!-- Boutons "Retour au tableau de bord" et "Ajouter un utilisateur" -->
+                <div class="action-buttons">
+                    <a href="rh.php" class="btn btn-secondary">
+                        <i class="bi bi-arrow-left"></i> Retour au tableau de bord
+                    </a>
+                    <a href="ajouter_utilisateur_rh.php" class="btn btn-success">
+                        <i class="bi bi-person-plus"></i> Ajouter un utilisateur
+                    </a>
+                </div>
                 <table class="table table-striped">
                     <thead>
                         <tr>
@@ -139,22 +138,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['modifier_utilisateur'
                                 <td><?php echo $row["role"]; ?></td>
                                 <td><?php echo ucfirst($row["disponibilite"]); ?></td>
                                 <td>
-                                    <a href="gestion_utilisateurs_rh.php?action=supprimer&id=<?php echo $row["id"]; ?>" 
-                                       class="btn btn-danger btn-sm" 
-                                       onclick="return confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ?')">Supprimer</a>
-                                    <a href="modifier_utilisateur_rh.php?id=<?php echo $row["id"]; ?>" 
-                                       class="btn btn-primary btn-sm">Modifier</a>
+                                    <a href="gestion_utilisateurs_rh.php?action=supprimer&id=<?php echo $row["id"]; ?>"
+                                        class="btn btn-danger btn-sm"
+                                        onclick="return confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ?')">Supprimer</a>
+                                    <a href="modifier_utilisateur_rh.php?id=<?php echo $row["id"]; ?>"
+                                        class="btn btn-primary btn-sm">Modifier</a>
                                     <?php if ($row["disponibilite"] == 'malade'): ?>
-                                        <a href="gestion_utilisateurs_rh.php?action=marquer_disponible&id=<?php echo $row["id"]; ?>" 
-                                           class="btn btn-success btn-sm">Marquer disponible</a>
+                                        <a href="gestion_utilisateurs_rh.php?action=marquer_disponible&id=<?php echo $row["id"]; ?>"
+                                            class="btn btn-success btn-sm">Marquer disponible</a>
                                     <?php elseif ($row["disponibilite"] == 'congé'): ?>
-                                        <a href="gestion_utilisateurs_rh.php?action=marquer_disponible&id=<?php echo $row["id"]; ?>" 
-                                           class="btn btn-success btn-sm">Marquer disponible</a>
+                                        <a href="gestion_utilisateurs_rh.php?action=marquer_disponible&id=<?php echo $row["id"]; ?>"
+                                            class="btn btn-success btn-sm">Marquer disponible</a>
                                     <?php else: ?>
-                                        <a href="gestion_utilisateurs_rh.php?action=marquer_malade&id=<?php echo $row["id"]; ?>" 
-                                           class="btn btn-warning btn-sm">Marquer malade</a>
-                                        <a href="gestion_utilisateurs_rh.php?action=marquer_conge&id=<?php echo $row["id"]; ?>" 
-                                           class="btn btn-info btn-sm">Marquer en congé</a>
+                                        <a href="gestion_utilisateurs_rh.php?action=marquer_malade&id=<?php echo $row["id"]; ?>"
+                                            class="btn btn-warning btn-sm">Marquer malade</a>
+                                        <a href="gestion_utilisateurs_rh.php?action=marquer_conge&id=<?php echo $row["id"]; ?>"
+                                            class="btn btn-info btn-sm">Marquer en congé</a>
                                     <?php endif; ?>
                                 </td>
                             </tr>
@@ -167,4 +166,5 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['modifier_utilisateur'
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
+
 </html>
