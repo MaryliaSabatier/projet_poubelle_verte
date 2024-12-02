@@ -175,15 +175,7 @@ $resultTournees = $conn->query($sqlTournees);
                         <div class='tournee'>
                             <h4>Tournée ID: <?php echo $row['tournee_id']; ?> - Date: <?php echo $row['date']; ?> - Cyclistes: <?php echo $row['nombre_cyclistes']; ?> - Vélos: <?php echo $row['nombre_velos']; ?></h4>
                             <div class='d-flex justify-content-between mt-3'>
-                                <!-- Formulaire pour lancer la tournée -->
-                                <form method='POST' class='d-inline'>
-                                    <input type='hidden' name='tournee_id' value='<?php echo $row['tournee_id']; ?>'>
-                                    <button type='submit' class='btn btn-primary btn-sm' name='launch_tournee' 
-                                    <?php if ($row['nombre_cyclistes'] == 0 || $row['nombre_velos'] < $row['nombre_cyclistes']) echo 'disabled'; ?>>
-                                    Lancer la tournée
-                                    </button>
-                                </form>
-                                <a href="trajet2.php?tournee_id=<?php echo $row['tournee_id']; ?>" class="btn btn-info btn-sm">Visualisation Trajet</a>
+                                <a href="trajet.php?tournee_id=<?php echo $row['tournee_id']; ?>" class="btn btn-info btn-sm">Visualisation Trajet</a>
 
                                 <!-- Si pas assez de vélos, afficher le bouton pour aller à la gestion des vélos -->
                                 <?php if ($row['nombre_velos'] < $row['nombre_cyclistes']): ?>

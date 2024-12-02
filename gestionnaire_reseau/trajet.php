@@ -1031,18 +1031,21 @@ foreach ($allRoutes as $route) {
 <html>
 <head>
     <meta charset="utf-8" />
-    <title>Itinéraires avec 4 Nouveaux Arrêts</title>
+    <title>Itinéraires des vélos de la tournée</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <!-- Inclure la feuille de style de Leaflet -->
+    <!-- Inclure la feuille de style de Bootstrap et Leaflet -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
 
     <style>
         #map {
             height: 600px;
+            margin-top: 20px;
         }
         body {
             margin: 0;
+            padding: 0;
         }
         .agent {
             margin-bottom: 20px;
@@ -1054,169 +1057,191 @@ foreach ($allRoutes as $route) {
     </style>
 </head>
 <body>
+    <div class="container mt-5">
+        <h1 class="text-center text-primary mb-4">Itinéraires avec 4 Nouveaux Arrêts</h1>
 
-<h1>Itinéraires avec 4 Nouveaux Arrêts</h1>
+        <!-- Formulaire -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <form method="get" class="row g-3">
+                    <div class="col-md-6">
+                        <label for="numAgents" class="form-label">Nombre d'agents (automatique) :</label>
+                        <input type="number" class="form-control" id="numAgents" name="numAgents" value="<?php echo $numAgents; ?>" min="1" readonly>
+                    </div>
+                    <div class="col-md-6 align-self-end">
+                        <input type="submit" value="Actualiser les itinéraires" class="btn btn-primary">
+                    </div>
+                </form>
+            </div>
+        </div>
 
-<!-- Formulaire -->
-<form method="get">
-    <label for="numAgents">Nombre d'agents (automatique) :</label>
-    <input type="number" id="numAgents" name="numAgents" value="<?php echo $numAgents; ?>" min="1" readonly>
-    <input type="submit" value="Actualiser les itinéraires">
-</form>
+        <!-- Liste des agents -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <h2 class="card-title">Agents et leurs vélos attribués</h2>
+                <ul class="list-group">
+                    <?php
+                    for ($i = 0; $i < $numAgents; $i++) {
+                        $agent = $utilisateursDisponibles[$i];
+                        $velo = $velosDisponibles[$i];
+                        echo "<li class='list-group-item'>Agent " . ($i + 1) . ": " . htmlspecialchars($agent['prenom'] . " " . $agent['nom']) .
+                            " (Vélo #" . htmlspecialchars($velo['numero']) . ")</li>";
+                    }
+                    ?>
+                </ul>
+            </div>
+        </div>
 
-<!-- Liste des agents -->
-<h2>Agents et leurs vélos attribués</h2>
-<ul>
-    <?php
-    for ($i = 0; $i < $numAgents; $i++) {
-        $agent = $utilisateursDisponibles[$i];
-        $velo = $velosDisponibles[$i];
-        echo "<li>Agent " . ($i + 1) . ": " . htmlspecialchars($agent['prenom'] . " " . $agent['nom']) .
-            " (Vélo #" . htmlspecialchars($velo['numero']) . ")</li>";
-    }
-    ?>
-</ul>
+        <!-- Sélection de l'agent -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <label for="agentSelect" class="form-label">Sélectionnez un agent :</label>
+                <select id="agentSelect" class="form-select">
+                    <option value="all">Tous les agents</option>
+                    <?php
+                    foreach ($itineraries as $agent => $routes) {
+                        echo '<option value="agent' . $agent . '">Agent ' . ($agent + 1) . '</option>';
+                    }
+                    ?>
+                </select>
+            </div>
+        </div>
 
-<!-- Sélection de l'agent -->
-<label for="agentSelect">Sélectionnez un agent :</label>
-<select id="agentSelect">
-    <option value="all">Tous les agents</option>
-    <?php
-    foreach ($itineraries as $agent => $routes) {
-        echo '<option value="agent' . $agent . '">Agent ' . ($agent + 1) . '</option>';
-    }
-    ?>
-</select>
-
-<?php
-// Afficher les itinéraires pour chaque agent
-foreach ($itineraries as $agent => $routes) {
-    echo "<div class='agent' id='agent" . $agent . "'>";
-    echo "<h2>Itinéraire pour l'agent " . ($agent + 1) . "</h2>";
-    foreach ($routes as $routeIndex => $route) {
-        echo "<h3>Route " . ($routeIndex + 1) . "</h3>";
-        echo "<ul>";
-        foreach ($route as $stop) {
-            echo "<li>" . htmlspecialchars($stop) . "</li>";
-        }
-        echo "</ul>";
-    }
-    echo "</div>";
-}
-?>
-
-<div id="map"></div>
-
-<!-- Inclure la bibliothèque Leaflet -->
-<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
-
-<script>
-// Initialiser la carte
-var map = L.map('map').setView([48.8566, 2.3522], 12);
-
-// Ajouter une couche de tuiles OpenStreetMap
-L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', {
-    maxZoom: 20,
-    attribution: '&copy; OpenStreetMap France | Données &copy; contributeurs OpenStreetMap'
-}).addTo(map);
-
-// Données des arrêts depuis PHP
-var stops = <?php echo json_encode($stops); ?>;
-
-// Données des itinéraires depuis PHP
-var itineraries = <?php echo json_encode($itineraries); ?>;
-
-// Couleurs pour chaque agent
-var colors = ['red', 'blue', 'green', 'orange', 'purple', 'brown', 'cyan', 'magenta'];
-
-// Stocker les polylignes et marqueurs pour chaque agent
-var agentLayers = {};
-
-var agentIndex = 0;
-for (var agent in itineraries) {
-    var routes = itineraries[agent];
-    var agentLayerGroup = L.layerGroup(); // Créer un groupe de calques pour cet agent
-
-    for (var i = 0; i < routes.length; i++) {
-        var route = routes[i];
-        var latlngs = [];
-        for (var j = 0; j < route.length; j++) {
-            var stopName = route[j];
-            if (stops[stopName]) {
-                latlngs.push([stops[stopName].lat, stops[stopName].lng]);
+        <!-- Affichage des itinéraires -->
+        <div>
+            <?php
+            foreach ($itineraries as $agent => $routes) {
+                echo "<div class='agent card mb-4' id='agent" . $agent . "'>";
+                echo "<div class='card-body'>";
+                echo "<h2 class='card-title'>Itinéraire pour l'agent " . ($agent + 1) . "</h2>";
+                foreach ($routes as $routeIndex => $route) {
+                    echo "<h3>Route " . ($routeIndex + 1) . "</h3>";
+                    echo "<ul class='list-group'>";
+                    foreach ($route as $stop) {
+                        echo "<li class='list-group-item'>" . htmlspecialchars($stop) . "</li>";
+                    }
+                    echo "</ul>";
+                }
+                echo "</div>";
+                echo "</div>";
             }
+            ?>
+        </div>
+
+        <!-- Carte -->
+        <div id="map" class="rounded border"></div>
+    </div>
+
+    <!-- Inclure Bootstrap JS et Leaflet JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+
+    <script>
+        // Initialiser la carte
+        var map = L.map('map').setView([48.8566, 2.3522], 12);
+
+        // Ajouter une couche de tuiles OpenStreetMap
+        L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', {
+            maxZoom: 20,
+            attribution: '&copy; OpenStreetMap France | Données &copy; contributeurs OpenStreetMap'
+        }).addTo(map);
+
+        // Données des arrêts depuis PHP
+        var stops = <?php echo json_encode($stops); ?>;
+
+        // Données des itinéraires depuis PHP
+        var itineraries = <?php echo json_encode($itineraries); ?>;
+
+        // Couleurs pour chaque agent
+        var colors = ['red', 'blue', 'green', 'orange', 'purple', 'brown', 'cyan', 'magenta'];
+
+        // Stocker les polylignes et marqueurs pour chaque agent
+        var agentLayers = {};
+
+        var agentIndex = 0;
+        for (var agent in itineraries) {
+            var routes = itineraries[agent];
+            var agentLayerGroup = L.layerGroup(); // Créer un groupe de calques pour cet agent
+
+            for (var i = 0; i < routes.length; i++) {
+                var route = routes[i];
+                var latlngs = [];
+                for (var j = 0; j < route.length; j++) {
+                    var stopName = route[j];
+                    if (stops[stopName]) {
+                        latlngs.push([stops[stopName].lat, stops[stopName].lng]);
+                    }
+                }
+                var polyline = L.polyline(latlngs, {
+                    color: colors[agentIndex % colors.length],
+                    weight: 3,
+                    opacity: 0.7
+                });
+                polyline.bindPopup("<b>Agent " + (parseInt(agent) + 1) + " - Route " + (i + 1) + "</b>");
+                agentLayerGroup.addLayer(polyline);
+            }
+
+            // Ajouter les arrêts à la carte
+            for (var stop in stops) {
+                var marker = L.circleMarker([stops[stop].lat, stops[stop].lng], {
+                    radius: 5,
+                    fillColor: '#0000FF',
+                    color: '#0000FF',
+                    weight: 1,
+                    opacity: 1,
+                    fillOpacity: 0.8
+                });
+                marker.bindPopup("<b>" + stop + "</b>");
+                agentLayerGroup.addLayer(marker);
+            }
+
+            agentLayers['agent' + agent] = agentLayerGroup;
+            agentIndex++;
         }
-        var polyline = L.polyline(latlngs, {
-            color: colors[agentIndex % colors.length],
-            weight: 3,
-            opacity: 0.7
-        });
-        polyline.bindPopup("<b>Agent " + (parseInt(agent) + 1) + " - Route " + (i + 1) + "</b>");
-        agentLayerGroup.addLayer(polyline);
-    }
 
-    // Ajouter les arrêts à la carte
-    for (var stop in stops) {
-        var marker = L.circleMarker([stops[stop].lat, stops[stop].lng], {
-            radius: 5,
-            fillColor: '#0000FF',
-            color: '#0000FF',
-            weight: 1,
-            opacity: 1,
-            fillOpacity: 0.8
-        });
-        marker.bindPopup("<b>" + stop + "</b>");
-        agentLayerGroup.addLayer(marker);
-    }
+        // Fonction pour afficher uniquement l'itinéraire de l'agent sélectionné
+        function showAgent(agentId) {
+            // Supprimer toutes les couches de la carte
+            for (var key in agentLayers) {
+                map.removeLayer(agentLayers[key]);
+            }
 
-    agentLayers['agent' + agent] = agentLayerGroup;
-    agentIndex++;
-}
-
-// Fonction pour afficher uniquement l'itinéraire de l'agent sélectionné
-function showAgent(agentId) {
-    // Supprimer toutes les couches de la carte
-    for (var key in agentLayers) {
-        map.removeLayer(agentLayers[key]);
-    }
-
-    if (agentId === 'all') {
-        // Afficher tous les agents
-        for (var key in agentLayers) {
-            agentLayers[key].addTo(map);
-        }
-        // Afficher tous les itinéraires textuels
-        var agentDivs = document.getElementsByClassName('agent');
-        for (var i = 0; i < agentDivs.length; i++) {
-            agentDivs[i].style.display = 'block';
-        }
-    } else {
-        // Afficher uniquement l'agent sélectionné
-        agentLayers[agentId].addTo(map);
-
-        // Cacher les itinéraires des autres agents
-        var agentDivs = document.getElementsByClassName('agent');
-        for (var i = 0; i < agentDivs.length; i++) {
-            if (agentDivs[i].id === agentId) {
-                agentDivs[i].style.display = 'block';
+            if (agentId === 'all') {
+                // Afficher tous les agents
+                for (var key in agentLayers) {
+                    agentLayers[key].addTo(map);
+                }
+                // Afficher tous les itinéraires textuels
+                var agentDivs = document.getElementsByClassName('agent');
+                for (var i = 0; i < agentDivs.length; i++) {
+                    agentDivs[i].style.display = 'block';
+                }
             } else {
-                agentDivs[i].style.display = 'none';
+                // Afficher uniquement l'agent sélectionné
+                agentLayers[agentId].addTo(map);
+
+                // Cacher les itinéraires des autres agents
+                var agentDivs = document.getElementsByClassName('agent');
+                for (var i = 0; i < agentDivs.length; i++) {
+                    if (agentDivs[i].id === agentId) {
+                        agentDivs[i].style.display = 'block';
+                    } else {
+                        agentDivs[i].style.display = 'none';
+                    }
+                }
             }
         }
-    }
-}
 
-// Ajouter un écouteur d'événement sur le sélecteur d'agent
-var agentSelect = document.getElementById('agentSelect');
-agentSelect.addEventListener('change', function () {
-    var selectedAgent = this.value;
-    showAgent(selectedAgent);
-});
+        // Ajouter un écouteur d'événement sur le sélecteur d'agent
+        var agentSelect = document.getElementById('agentSelect');
+        agentSelect.addEventListener('change', function () {
+            var selectedAgent = this.value;
+            showAgent(selectedAgent);
+        });
 
-// Afficher initialement tous les agents
-showAgent('all');
-
-</script>
+        // Afficher initialement tous les agents
+        showAgent('all');
+    </script>
 
 </body>
 </html>
