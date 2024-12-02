@@ -60,17 +60,20 @@ $sqlIncidents = "
         i.heure, 
         i.description, 
         i.resolution, 
-        i.resolved_at,  -- Ajout de cette colonne
+        i.resolved_at, 
         t.date AS tournee_date, 
         t.heure_debut, 
-        t.heure_fin
+        t.heure_fin,
+        a.libelle AS arret_libelle, -- Nom de l'arrêt associé
+        r.libelle AS rue_libelle   -- Nom de la rue associée
     FROM incidents i
     LEFT JOIN tournees t ON i.tournee_id = t.id
+    LEFT JOIN arrets a ON i.arret_id = a.id
+    LEFT JOIN rues r ON i.rue_id = r.id
     ORDER BY i.date DESC, i.heure DESC
 ";
-
-
 $resultIncidents = $conn->query($sqlIncidents);
+
 ?>
 
 <!DOCTYPE html>
@@ -101,56 +104,58 @@ $resultIncidents = $conn->query($sqlIncidents);
                     <th>Type d'incident</th>
                     <th>Date</th>
                     <th>Heure</th>
+                    <th>Arrêt impliqué</th>
+                    <th>Rue impliquée</th>
                     <th>Description</th>
-                    <th>Status</th>
                     <th>Date de clôture</th>
+                    <th>Date de clôture</th>
+
                     <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
-                <?php if ($resultIncidents->num_rows > 0) { ?>
-                    <?php while ($incident = $resultIncidents->fetch_assoc()) { ?>
-                        <tr>
-                            <td><?php echo $incident['id']; ?></td>
-                            <td><?php echo $incident['tournee_id'] ?: 'Non assignée'; ?></td>
-                            <td><?php echo ucfirst(str_replace('_', ' ', $incident['type_incident'])); ?></td>
-                            <td><?php echo $incident['date']; ?></td>
-                            <td><?php echo $incident['heure']; ?></td>
-                            <td><?php echo htmlspecialchars($incident['description']); ?></td>
-                            <td>
-                                <?php if ($incident['resolved_at']) { ?>
-                                    <span class="badge bg-success">Clôturé</span>
-                                <?php } else { ?>
-                                    <form method="post" action="gestion_incidents.php">
-                                        <input type="hidden" name="incident_id" value="<?php echo $incident['id']; ?>">
-                                        <input type="text" name="resolution" placeholder="Ajouter une résolution" class="form-control mb-2">
-                                        <button type="submit" class="btn btn-success btn-sm">Clôturer</button>
-                                    </form>
-                                <?php } ?>
-                            </td>
-                            <td>
-                                <?php echo $incident['resolved_at'] ? $incident['resolved_at'] : 'Non clôturé'; ?>
-                            </td>
-
-                            <td>
-                                <a href="modifier_incident.php?id=<?php echo $incident['id']; ?>"
-                                    class="btn btn-warning btn-sm <?php echo $incident['resolved_at'] ? 'disabled' : ''; ?>">
-                                    Modifier
-                                </a>
-                                <a href="gestion_incidents.php?action=supprimer&id=<?php echo $incident['id']; ?>"
-                                    class="btn btn-danger btn-sm"
-                                    onclick="return confirm('Êtes-vous sûr de vouloir supprimer cet incident ?');">
-                                    Supprimer
-                                </a>
-                            </td>
-                        </tr>
+    <?php if ($resultIncidents->num_rows > 0) { ?>
+        <?php while ($incident = $resultIncidents->fetch_assoc()) { ?>
+            <tr>
+                <td><?php echo $incident['id']; ?></td>
+                <td><?php echo $incident['tournee_id'] ?: 'Non assignée'; ?></td>
+                <td><?php echo ucfirst(str_replace('_', ' ', $incident['type_incident'])); ?></td>
+                <td><?php echo $incident['date']; ?></td>
+                <td><?php echo $incident['heure']; ?></td>
+                <td><?php echo $incident['arret_libelle'] ?: 'Non spécifié'; ?></td>
+                <td><?php echo $incident['rue_libelle'] ?: 'Non spécifiée'; ?></td>
+                <td><?php echo htmlspecialchars($incident['description']); ?></td>
+                <td>
+                    <?php if ($incident['resolved_at']) { ?>
+                        <span class="badge bg-success">Clôturé</span>
+                    <?php } else { ?>
+                        <form method="post" action="gestion_incidents.php">
+                            <input type="hidden" name="incident_id" value="<?php echo $incident['id']; ?>">
+                            <input type="text" name="resolution" placeholder="Ajouter une résolution" class="form-control mb-2">
+                            <button type="submit" class="btn btn-success btn-sm">Clôturer</button>
+                        </form>
                     <?php } ?>
-                <?php } else { ?>
-                    <tr>
-                        <td colspan="8" class="text-center">Aucun incident enregistré.</td>
-                    </tr>
-                <?php } ?>
-            </tbody>
+                </td>
+                <td><?php echo $incident['resolved_at'] ?: 'Non clôturé'; ?></td>
+                <td>
+                    <a href="modifier_incident.php?id=<?php echo $incident['id']; ?>"
+                        class="btn btn-warning btn-sm <?php echo $incident['resolved_at'] ? 'disabled' : ''; ?>">
+                        Modifier
+                    </a>
+                    <a href="gestion_incidents.php?action=supprimer&id=<?php echo $incident['id']; ?>"
+                        class="btn btn-danger btn-sm"
+                        onclick="return confirm('Êtes-vous sûr de vouloir supprimer cet incident ?');">
+                        Supprimer
+                    </a>
+                </td>
+            </tr>
+        <?php } ?>
+    <?php } else { ?>
+        <tr>
+            <td colspan="11" class="text-center">Aucun incident enregistré.</td>
+        </tr>
+    <?php } ?>
+</tbody>
         </table>
     </div>
 

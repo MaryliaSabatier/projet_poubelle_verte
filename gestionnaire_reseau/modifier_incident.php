@@ -45,6 +45,14 @@ $incident = $resultIncident->fetch_assoc();
 $sqlTournees = "SELECT id FROM tournees";
 $resultTournees = $conn->query($sqlTournees);
 
+// Récupération des rues pour le formulaire
+$sqlRues = "SELECT id, libelle FROM rues";
+$resultRues = $conn->query($sqlRues);
+
+// Récupération des arrêts pour le formulaire
+$sqlArrets = "SELECT id, libelle FROM arrets";
+$resultArrets = $conn->query($sqlArrets);
+
 // Traitement du formulaire de modification
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     // Récupération des valeurs modifiées depuis le formulaire
@@ -53,17 +61,41 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $dateIncident = $_POST['date_incident'];
     $heureIncident = $_POST['heure_incident'];
     $description = htmlspecialchars($_POST['description']);
+    $arretId = !empty($_POST['arret_id']) ? intval($_POST['arret_id']) : null;
+    $rueId = !empty($_POST['rue_id']) ? intval($_POST['rue_id']) : null;
 
     // Validation des champs obligatoires
     if (empty($tourneeId) || empty($typeIncident) || empty($dateIncident) || empty($heureIncident)) {
         $error = "Tous les champs marqués sont obligatoires.";
+    } elseif (!empty($arretId) && !empty($rueId)) {
+        $error = "Vous ne pouvez pas sélectionner à la fois un arrêt et une rue.";
     }
 
     if (empty($error)) {
         // Requête pour mettre à jour l'incident
-        $sqlUpdate = "UPDATE incidents SET tournee_id = ?, type_incident = ?, date = ?, heure = ?, description = ? WHERE id = ?";
+        $sqlUpdate = "
+            UPDATE incidents 
+            SET 
+                tournee_id = ?, 
+                type_incident = ?, 
+                date = ?, 
+                heure = ?, 
+                description = ?, 
+                arret_id = ?, 
+                rue_id = ? 
+            WHERE id = ?";
         $stmtUpdate = $conn->prepare($sqlUpdate);
-        $stmtUpdate->bind_param("issssi", $tourneeId, $typeIncident, $dateIncident, $heureIncident, $description, $incidentId);
+        $stmtUpdate->bind_param(
+            "issssiii",
+            $tourneeId,
+            $typeIncident,
+            $dateIncident,
+            $heureIncident,
+            $description,
+            $arretId,
+            $rueId,
+            $incidentId
+        );
 
         if ($stmtUpdate->execute()) {
             header('Location: gestion_incidents.php'); // Redirection après succès
@@ -73,19 +105,24 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
     }
 }
+
 ?>
 
 <!DOCTYPE html>
 <html>
+
 <head>
     <title>Modifier un incident</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
 </head>
+
 <body>
     <div class="container mt-5">
         <h2>Modifier un incident</h2>
 
-        <?php if (!empty($error)) { echo "<div class='alert alert-danger'>$error</div>"; } ?>
+        <?php if (!empty($error)) {
+            echo "<div class='alert alert-danger'>$error</div>";
+        } ?>
 
         <form method="POST">
             <div class="mb-3">
@@ -110,6 +147,28 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 </select>
             </div>
             <div class="mb-3">
+                <label for="arret_id" class="form-label">Arrêt impliqué (optionnel)</label>
+                <select class="form-select" id="arret_id" name="arret_id">
+                    <option value="">Sélectionnez un arrêt</option>
+                    <?php while ($arret = $resultArrets->fetch_assoc()) { ?>
+                        <option value="<?php echo $arret['id']; ?>" <?php echo ($incident['arret_id'] == $arret['id']) ? 'selected' : ''; ?>>
+                            <?php echo $arret['libelle']; ?>
+                        </option>
+                    <?php } ?>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label for="rue_id" class="form-label">Rue impliquée (optionnel)</label>
+                <select class="form-select" id="rue_id" name="rue_id">
+                    <option value="">Sélectionnez une rue</option>
+                    <?php while ($rue = $resultRues->fetch_assoc()) { ?>
+                        <option value="<?php echo $rue['id']; ?>" <?php echo ($incident['rue_id'] == $rue['id']) ? 'selected' : ''; ?>>
+                            <?php echo $rue['libelle']; ?>
+                        </option>
+                    <?php } ?>
+                </select>
+            </div>
+            <div class="mb-3">
                 <label for="date_incident" class="form-label">Date de l'incident</label>
                 <input type="date" class="form-control" id="date_incident" name="date_incident" value="<?php echo $incident['date']; ?>" required>
             </div>
@@ -124,6 +183,31 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             <button type="submit" class="btn btn-primary">Modifier</button>
             <a href="gestion_incidents.php" class="btn btn-secondary">Annuler</a>
         </form>
+
     </div>
 </body>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+    const arretSelect = document.getElementById('arret_id');
+    const rueSelect = document.getElementById('rue_id');
+
+    arretSelect.addEventListener('change', function () {
+        if (arretSelect.value) {
+            rueSelect.disabled = true;
+        } else {
+            rueSelect.disabled = false;
+        }
+    });
+
+    rueSelect.addEventListener('change', function () {
+        if (rueSelect.value) {
+            arretSelect.disabled = true;
+        } else {
+            arretSelect.disabled = false;
+        }
+    });
+});
+
+</script>
+
 </html>

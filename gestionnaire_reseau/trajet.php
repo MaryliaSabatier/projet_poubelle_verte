@@ -1,4 +1,8 @@
 <?php
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 $stops = array(
     // Rue Croix-Baragnon
     "La Défense" => array("lat" => 48.8913, "lng" => 2.2376),
@@ -248,7 +252,7 @@ $stops = array(
     "Reuilly-Diderot" => array("lat" => 48.8489, "lng" => 2.3850),
     "Daumesnil" => array("lat" => 48.8360, "lng" => 2.3930),
     "Place d'Italie" => array("lat" => 48.8319, "lng" => 2.3551),
-    
+
     // Rue du Taur
     "Pont de Sèvres" => array("lat" => 48.8299, "lng" => 2.2335),
     "Billancourt" => array("lat" => 48.8330, "lng" => 2.2404),
@@ -942,6 +946,8 @@ $streets = array(
     )
 );
 
+
+
 // Connexion à la base de données
 $dsn = "mysql:host=localhost;dbname=poubelle_verte;charset=utf8";
 $username = "root";
@@ -1026,9 +1032,18 @@ foreach ($allRoutes as $route) {
     $itineraries[$agentIndex][] = $route;
     $routeIndex++;
 }
+
+// Récupérer les incidents
+try {
+    $sqlIncidents = "SELECT arret, description, DATE_FORMAT(date, '%d/%m/%Y %H:%i') AS date FROM incidents";
+    $incidents = $pdo->query($sqlIncidents)->fetchAll();
+} catch (PDOException $e) {
+    die("Erreur lors de la récupération des incidents : " . $e->getMessage());
+}
 ?>
 <!DOCTYPE html>
 <html>
+
 <head>
     <meta charset="utf-8" />
     <title>Itinéraires des vélos de la tournée</title>
@@ -1043,19 +1058,32 @@ foreach ($allRoutes as $route) {
             height: 600px;
             margin-top: 20px;
         }
+
         body {
             margin: 0;
             padding: 0;
         }
+
         .agent {
             margin-bottom: 20px;
         }
+
         .revisited {
             color: red;
             text-decoration: underline;
         }
+
+        .card-title {
+            font-size: 1.5rem;
+        }
+
+        .list-group-item {
+            font-size: 1rem;
+            line-height: 1.4;
+        }
     </style>
 </head>
+
 <body>
     <div class="container mt-5">
         <h1 class="text-center text-primary mb-4">Itinéraires des vélos pour la tournée</h1>
@@ -1074,6 +1102,27 @@ foreach ($allRoutes as $route) {
                 </form>
             </div>
         </div>
+
+        <!-- Liste des incidents -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <h2 class="card-title">Incidents signalés</h2>
+                <?php if (!empty($incidents)): ?>
+                    <ul class="list-group">
+                        <?php foreach ($incidents as $incident): ?>
+                            <li class="list-group-item">
+                                <strong><?php echo htmlspecialchars($incident['arret']); ?></strong> -
+                                <?php echo htmlspecialchars($incident['description']); ?>
+                                <em>(<?php echo htmlspecialchars($incident['date']); ?>)</em>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                <?php else: ?>
+                    <p class="text-muted">Aucun incident signalé.</p>
+                <?php endif; ?>
+            </div>
+        </div>
+
 
         <!-- Liste des agents -->
         <div class="card mb-4">
@@ -1128,7 +1177,7 @@ foreach ($allRoutes as $route) {
             ?>
         </div>
 
-        
+
         <!-- Carte -->
         <div id="map" class="rounded border"></div>
     </div>
@@ -1235,7 +1284,7 @@ foreach ($allRoutes as $route) {
 
         // Ajouter un écouteur d'événement sur le sélecteur d'agent
         var agentSelect = document.getElementById('agentSelect');
-        agentSelect.addEventListener('change', function () {
+        agentSelect.addEventListener('change', function() {
             var selectedAgent = this.value;
             showAgent(selectedAgent);
         });
@@ -1245,4 +1294,5 @@ foreach ($allRoutes as $route) {
     </script>
 
 </body>
+
 </html>
