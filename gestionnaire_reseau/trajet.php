@@ -1128,6 +1128,7 @@ foreach ($allRoutes as $route) {
             ?>
         </div>
 
+        
         <!-- Carte -->
         <div id="map" class="rounded border"></div>
     </div>

@@ -1,5 +1,8 @@
 <?php
 session_start();
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
 
 // Vérification de la connexion et du rôle de gestionnaire de réseau
 if (!isset($_SESSION['user_id']) || $_SESSION['role_id'] != 4) { // 4 = ID du rôle gestionnaire de réseau
@@ -18,6 +21,22 @@ if ($conn->connect_error) {
     die("Connexion à la base de données échouée : " . $conn->connect_error);
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['incident_id'], $_POST['resolution'])) {
+    $incidentId = intval($_POST['incident_id']);
+    $resolution = $conn->real_escape_string($_POST['resolution']);
+
+    $stmt = $conn->prepare("UPDATE incidents SET resolution = ?, resolved_at = NOW() WHERE id = ?");
+    $stmt->bind_param("si", $resolution, $incidentId);
+
+    if ($stmt->execute()) {
+        header('Location: gestion_incidents.php'); // Rafraîchir la page après mise à jour
+        exit();
+    } else {
+        $error = "Erreur lors de la mise à jour de la résolution : " . $stmt->error;
+    }
+}
+
+
 // Suppression d'un incident si demandé
 if (isset($_GET['action']) && $_GET['action'] == 'supprimer' && isset($_GET['id'])) {
     $incidentId = intval($_GET['id']);
@@ -33,23 +52,37 @@ if (isset($_GET['action']) && $_GET['action'] == 'supprimer' && isset($_GET['id'
 
 // Récupération des incidents enregistrés
 $sqlIncidents = "
-    SELECT i.id, i.tournee_id, i.type_incident, i.date, i.heure, i.description, t.date AS tournee_date, t.heure_debut, t.heure_fin
+    SELECT 
+        i.id, 
+        i.tournee_id, 
+        i.type_incident, 
+        i.date, 
+        i.heure, 
+        i.description, 
+        i.resolution, 
+        i.resolved_at,  -- Ajout de cette colonne
+        t.date AS tournee_date, 
+        t.heure_debut, 
+        t.heure_fin
     FROM incidents i
     LEFT JOIN tournees t ON i.tournee_id = t.id
     ORDER BY i.date DESC, i.heure DESC
 ";
+
 
 $resultIncidents = $conn->query($sqlIncidents);
 ?>
 
 <!DOCTYPE html>
 <html lang="fr">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestion des incidents</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
 </head>
+
 <body>
     <div class="container mt-5">
         <h2>Gestion des incidents</h2>
@@ -69,6 +102,8 @@ $resultIncidents = $conn->query($sqlIncidents);
                     <th>Date</th>
                     <th>Heure</th>
                     <th>Description</th>
+                    <th>Status</th>
+                    <th>Date de clôture</th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -83,18 +118,36 @@ $resultIncidents = $conn->query($sqlIncidents);
                             <td><?php echo $incident['heure']; ?></td>
                             <td><?php echo htmlspecialchars($incident['description']); ?></td>
                             <td>
-                                <a href="modifier_incident.php?id=<?php echo $incident['id']; ?>" class="btn btn-warning btn-sm">Modifier</a>
-                                <a href="gestion_incidents.php?action=supprimer&id=<?php echo $incident['id']; ?>" 
-                                   class="btn btn-danger btn-sm" 
-                                   onclick="return confirm('Êtes-vous sûr de vouloir supprimer cet incident ?');">
-                                   Supprimer
+                                <?php if ($incident['resolved_at']) { ?>
+                                    <span class="badge bg-success">Clôturé</span>
+                                <?php } else { ?>
+                                    <form method="post" action="gestion_incidents.php">
+                                        <input type="hidden" name="incident_id" value="<?php echo $incident['id']; ?>">
+                                        <input type="text" name="resolution" placeholder="Ajouter une résolution" class="form-control mb-2">
+                                        <button type="submit" class="btn btn-success btn-sm">Clôturer</button>
+                                    </form>
+                                <?php } ?>
+                            </td>
+                            <td>
+                                <?php echo $incident['resolved_at'] ? $incident['resolved_at'] : 'Non clôturé'; ?>
+                            </td>
+
+                            <td>
+                                <a href="modifier_incident.php?id=<?php echo $incident['id']; ?>"
+                                    class="btn btn-warning btn-sm <?php echo $incident['resolved_at'] ? 'disabled' : ''; ?>">
+                                    Modifier
+                                </a>
+                                <a href="gestion_incidents.php?action=supprimer&id=<?php echo $incident['id']; ?>"
+                                    class="btn btn-danger btn-sm"
+                                    onclick="return confirm('Êtes-vous sûr de vouloir supprimer cet incident ?');">
+                                    Supprimer
                                 </a>
                             </td>
                         </tr>
                     <?php } ?>
                 <?php } else { ?>
                     <tr>
-                        <td colspan="7" class="text-center">Aucun incident enregistré.</td>
+                        <td colspan="8" class="text-center">Aucun incident enregistré.</td>
                     </tr>
                 <?php } ?>
             </tbody>
@@ -103,4 +156,5 @@ $resultIncidents = $conn->query($sqlIncidents);
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
+
 </html>
