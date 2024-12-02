@@ -10,20 +10,25 @@ include 'C:\xampp\htdocs\projet_poubelle_verte\config.php'; // Assurez-vous que 
 header('Content-Type: application/json');
 
 try {
-    // Préparer la requête SQL pour récupérer les arrêts et leurs adjacents
+    // Requête SQL pour récupérer les arrêts et leurs adjacents
     $query = "
         SELECT 
             a.id AS arret_id, 
             a.latitude, 
             a.longitude, 
             a.libelle,
-            IFNULL(GROUP_CONCAT(DISTINCT ar2.arret_id), '') AS adjacents
-        FROM arrets a
-        LEFT JOIN arret_rues ar1 ON a.id = ar1.arret_id
-        LEFT JOIN arret_rues ar2 ON ar1.rue_id = ar2.rue_id AND ar2.arret_id != a.id
-        GROUP BY a.id
+            IFNULL(GROUP_CONCAT(ar2.arret_id), '') AS adjacents
+        FROM 
+            arrets a
+        LEFT JOIN 
+            arret_rues ar1 ON a.id = ar1.arret_id
+        LEFT JOIN 
+            arret_rues ar2 ON ar1.rue_id = ar2.rue_id AND ar1.arret_id != ar2.arret_id
+        GROUP BY 
+            a.id
     ";
-    
+
+    // Préparer et exécuter la requête
     $stmt = $conn->prepare($query);
     $stmt->execute();
 
@@ -40,7 +45,7 @@ try {
     echo json_encode([
         'status' => 'success',
         'data' => $arrets
-    ]);
+    ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
 } catch (Exception $e) {
     // Gestion des erreurs
     echo json_encode([

@@ -1,36 +1,3 @@
-class Arret {
-    /**
-     * Crée un arrêt avec des propriétés spécifiques
-     * @param {number} id - Identifiant unique de l'arrêt
-     * @param {number} lat - Latitude de l'arrêt
-     * @param {number} lon - Longitude de l'arrêt
-     * @param {Array} adjacents - Liste des arrêts adjacents
-     */
-    constructor(id, lat, lon, adjacents = []) {
-        this.id = id;
-        this.lat = lat;
-        this.lon = lon;
-        this.adjacents = adjacents; // Liste des arrêts adjacents
-    }
-
-    /**
-     * Ajoute un arrêt adjacent
-     * @param {Arret} arret - L'arrêt adjacent à ajouter
-     */
-    addAdjacent(arret) {
-        this.adjacents.push(arret);
-    }
-
-    /**
-     * Vérifie si un arrêt est adjacent
-     * @param {number} arretId - L'identifiant de l'arrêt à vérifier
-     * @returns {boolean} - True si l'arrêt est adjacent
-     */
-    isAdjacent(arretId) {
-        return this.adjacents.some(adjacent => adjacent.id === arretId);
-    }
-}
-
 async function fetchArrets() {
     const response = await fetch('http://localhost/projet_poubelle_verte/map/api/arrets.php');
     if (!response.ok) {
@@ -43,20 +10,27 @@ async function fetchArrets() {
 
 
 async function initializeArrets() {
-    const rawArrets = await fetchArrets();
-    if (!rawArrets || !rawArrets.data) {
-        throw new Error('Les données reçues de l\'API ne contiennent pas de clé "data".');
-    }
-    const arrets = rawArrets.data.map(arret => {
-        if (!Array.isArray(arret.adjacents)) {
-            console.warn(`L'arrêt ${arret.id} n'a pas de liste d'adjacents valide.`, arret);
-            arret.adjacents = [];
+    try {
+        const rawArrets = await fetchArrets();
+        if (!rawArrets || !rawArrets.data) {
+            throw new Error('Les données reçues de l\'API ne contiennent pas de clé "data".');
         }
-        return new Arret(arret.id, arret.lat, arret.lon, arret.adjacents);
-    });
-    return arrets;
+        const arrets = rawArrets.data.map(arret => {
+            if (!Array.isArray(arret.adjacents)) {
+                console.warn(`L'arrêt ${arret.id} n'a pas de liste d'adjacents valide.`, arret);
+                arret.adjacents = [];
+            }
+            if (arret.lat == null || arret.lon == null) {
+                throw new Error(`Coordonnées manquantes pour l'arrêt ${arret.id}`);
+            }
+            return new Arret(arret.id, arret.lat, arret.lon, arret.adjacents);
+        });
+        return arrets;
+    } catch (error) {
+        console.error('Erreur lors de l\'initialisation des arrêts :', error);
+        throw error;
+    }
 }
-
 
 // Définition de la classe CheminPossibleDto
 class CheminPossibleDto {
@@ -96,7 +70,7 @@ class CheminPossibleDto {
         for (let i = 1; i < this.arrets.length; i++) {
             const prev = this.arrets[i - 1];
             const curr = this.arrets[i];
-            distance += ItineraireUtils.distanceEntreArrets(prev, curr);
+            distance += CalculItineraire.distanceEntreArrets(prev, curr);
         }
         return distance;
     }
@@ -121,7 +95,7 @@ const ramassageCyclisteVelo = {
 };
 
 
-class ItineraireUtils {
+class CalculItineraire {
     /**
      * Recherche des chemins possibles à partir d'un arrêt
      * @param {Object} arret - Arrêt courant
@@ -348,9 +322,9 @@ initializeArrets()
             console.log('Arret 1 est adjacent à 2 ?', arret1.isAdjacent(2));
         }
 
-        // Exemple avec ItineraireUtils
+        // Exemple avec CalculItineraire
         const cheminPossibleDtos = [new CheminPossibleDto([arret1])];
-        ItineraireUtils.chercheChemin(arret1, 0, cheminPossibleDtos);
+        CalculItineraire.chercheChemin(arret1, 0, cheminPossibleDtos);
         console.log('Chemins possibles à partir de l\'arrêt 1 :', cheminPossibleDtos);
     })
     .catch(error => {
@@ -358,5 +332,7 @@ initializeArrets()
     });
 
 
-export { CheminPossibleDto, ramassageCyclisteVelo, ItineraireUtils };
-export default ItineraireUtils;
+export { CheminPossibleDto, ramassageCyclisteVelo, CalculItineraire };
+export default CalculItineraire;
+import Arret from './arret.js';
+
