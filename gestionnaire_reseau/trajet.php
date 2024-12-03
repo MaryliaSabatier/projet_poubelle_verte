@@ -1042,33 +1042,91 @@ try {
 } catch (PDOException $e) {
     die("Erreur lors de la récupération des incidents : " . $e->getMessage());
 }
-// Récupération des incidents avec les arrêts et les rues associés
-// Récupérer les incidents avec les arrêts et rues associés
-// Récupération des incidents enregistrés (uniquement non résolus)
 // Récupération des incidents enregistrés (uniquement non résolus)
 $sqlIncidents = "
-    SELECT 
-        i.id, 
-        i.tournee_id, 
-        i.type_incident, 
-        i.date, 
-        i.heure, 
-        i.description, 
-        i.resolution, 
-        i.resolved_at, 
-        t.date AS tournee_date, 
-        t.heure_debut, 
-        t.heure_fin,
-        a.libelle AS arret_libelle, -- Nom de l'arrêt associé
-        r.libelle AS rue_libelle   -- Nom de la rue associée
-    FROM incidents i
-    LEFT JOIN tournees t ON i.tournee_id = t.id
-    LEFT JOIN arrets a ON i.arret_id = a.id
-    LEFT JOIN rues r ON i.rue_id = r.id
-    WHERE i.resolved_at IS NULL -- Filtrer uniquement les incidents non résolus
-    ORDER BY i.date DESC, i.heure DESC
+SELECT 
+    i.id, 
+    i.tournee_id, 
+    i.type_incident, 
+    i.date, 
+    i.heure, 
+    i.description, 
+    i.resolution, 
+    i.resolved_at, 
+    t.date AS tournee_date, 
+    t.heure_debut, 
+    t.heure_fin,
+    COALESCE(a.libelle, 'Aucun') AS arret_libelle, -- Valeur par défaut si NULL
+    COALESCE(r.libelle, 'Aucune') AS rue_libelle  -- Valeur par défaut si NULL
+FROM incidents i
+LEFT JOIN tournees t ON i.tournee_id = t.id
+LEFT JOIN arrets a ON i.arret_id = a.id
+LEFT JOIN rues r ON i.rue_id = r.id
+WHERE i.resolved_at IS NULL -- Filtrer uniquement les incidents non résolus
+ORDER BY i.date DESC, i.heure DESC
 ";
-$resultIncidents = $conn->query($sqlIncidents);
+
+// Utilisation de PDO
+try {
+    $resultIncidents = $pdo->query($sqlIncidents)->fetchAll();
+} catch (PDOException $e) {
+    die("Erreur lors de la récupération des incidents : " . $e->getMessage());
+}
+
+// Récupérer les arrêts bloqués à cause des incidents
+// Récupérer les arrêts et rues bloqués
+$sqlBlockedStops = "
+    SELECT 
+        a.libelle AS arret_libelle
+    FROM incidents i
+    LEFT JOIN arrets a ON i.arret_id = a.id
+    WHERE i.resolved_at IS NULL
+";
+try {
+    $blockedStops = $pdo->query($sqlBlockedStops)->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    die("Erreur lors de la récupération des arrêts bloqués : " . $e->getMessage());
+}
+
+$blockedArrets = array_column($blockedStops, 'arret_libelle');
+$blockedRues = array_column($blockedStops, 'rue_libelle');
+
+// Filtrer les arrêts bloqués
+// Exclusion des arrêts et rues bloqués
+$stopsToVisit = array_filter($stopsToVisit, function ($stop) use ($blockedStops) {
+    return !in_array(trim($stop), $blockedStops);
+});
+
+// Réinitialiser les itinéraires
+$allRoutes = [];
+$visitedStops = [];
+
+// Générer les itinéraires sans les arrêts bloqués
+while (!empty($stopsToVisit)) {
+    $route = [$startStop];
+    $newStops = [];
+
+    foreach ($stopsToVisit as $stop) {
+        if (count($newStops) < $groupSize) {
+            $newStops[] = $stop;
+        }
+    }
+
+    // Retirer les arrêts visités
+    foreach ($newStops as $stop) {
+        if (($key = array_search($stop, $stopsToVisit)) !== false) {
+            unset($stopsToVisit[$key]);
+        }
+    }
+
+    $route = array_merge($route, $newStops);
+    $route[] = $startStop;
+
+    $allRoutes[] = $route;
+}
+
+echo json_encode(['itineraries' => $allRoutes]);
+
 
 ?>
 <!DOCTYPE html>
@@ -1117,7 +1175,13 @@ $resultIncidents = $conn->query($sqlIncidents);
 <body>
     <div class="container mt-5">
         <h1 class="text-center text-primary mb-4">Itinéraires des vélos pour la tournée</h1>
-
+        <!-- Bouton retour vers le dashboard -->
+        <div class="text-center mb-4">
+            <a href="gestionnaire_reseau.php" class="btn btn-secondary">Retour au Dashboard</a>
+        </div>
+        <div class="text-center mb-4">
+            <a href="gestion_tournees.php" class="btn btn-secondary">Retour à la gestion des trajets</a>
+        </div>
         <!-- Formulaire -->
         <div class="card mb-4">
             <div class="card-body">
@@ -1137,20 +1201,23 @@ $resultIncidents = $conn->query($sqlIncidents);
         <div class="card mb-4">
             <div class="card-body">
                 <h2 class="card-title">Incidents signalés</h2>
-                <?php if (!empty($incidents)): ?>
+                <?php if (!empty($resultIncidents)): ?>
                     <ul class="list-group">
-                        <?php foreach ($incidents as $incident): ?>
-                            <li class="list-group-item">
-                                <strong>Arrêt :</strong>
-                                <?php echo $incident['arret_libelle'] ?: 'Aucun'; ?>,
-                                <strong>Rue :</strong>
-                                <?php echo $incident['rue_libelle'] ?: 'Aucune'; ?><br>
-                                <strong>Description :</strong>
-                                <?php echo htmlspecialchars($incident['description']); ?><br>
-                                <strong>Date :</strong>
-                                <?php echo htmlspecialchars($incident['date']); ?>
-                            </li>
-                        <?php endforeach; ?>
+                        <?php
+                        foreach ($resultIncidents as $incident) {
+                            $arretLibelle = !empty($incident['arret_libelle']) ? htmlspecialchars($incident['arret_libelle']) : 'Aucun';
+                            $rueLibelle = !empty($incident['rue_libelle']) ? htmlspecialchars($incident['rue_libelle']) : 'Aucune';
+                            $description = htmlspecialchars($incident['description']);
+                            $date = htmlspecialchars($incident['date']);
+
+                            echo "<li class='list-group-item'>";
+                            echo "<strong>Arrêt :</strong> $arretLibelle, ";
+                            echo "<strong>Rue :</strong> $rueLibelle<br>";
+                            echo "<strong>Description :</strong> $description<br>";
+                            echo "<strong>Date :</strong> $date";
+                            echo "</li>";
+                        }
+                        ?>
                     </ul>
                 <?php else: ?>
                     <p class="text-muted">Aucun incident signalé.</p>
@@ -1327,6 +1394,83 @@ $resultIncidents = $conn->query($sqlIncidents);
 
         // Afficher initialement tous les agents
         showAgent('all');
+
+        setInterval(() => {
+            fetch('http://localhost/projet_poubelle_verte/gestionnaire_reseau/fetch_incidents.php')
+                .then(response => response.json())
+                .then(data => {
+                    const blockedStops = data.blockedStops.map(stop => stop.arret_libelle);
+
+                    // Mettez à jour vos itinéraires en excluant les arrêts bloqués
+                    updateBlockedStops(blockedStops);
+                    regenerateRoutes(); // Appellez cette fonction pour redessiner les itinéraires
+                })
+                .catch(error => console.error("Erreur lors de la récupération des incidents : ", error));
+
+        }, 30000); // Vérifier les incidents toutes les 30 secondes
+
+        function updateBlockedStops(blockedStops) {
+            // Mise à jour des arrêts bloqués au niveau global
+            blockedArrets = blockedStops;
+
+            // Filtrer les itinéraires existants pour exclure les arrêts bloqués
+            for (const agent in itineraries) {
+                itineraries[agent] = itineraries[agent].map(route => {
+                    return route.filter(stop => !blockedArrets.includes(stop));
+                });
+            }
+        }
+
+
+        function regenerateRoutes() {
+            // Logique pour redessiner les itinéraires en excluant les arrêts bloqués
+            console.log("Itinéraires mis à jour !");
+        }
+
+        function regenerateRoutes() {
+            // Supprimer toutes les couches actuelles
+            for (const key in agentLayers) {
+                map.removeLayer(agentLayers[key]);
+            }
+
+            // Reconstruire les itinéraires avec les arrêts/rues mises à jour
+            agentLayers = {}; // Réinitialiser les couches
+            let agentIndex = 0;
+
+            for (const agent in itineraries) {
+                const routes = itineraries[agent];
+                const agentLayerGroup = L.layerGroup();
+
+                for (let i = 0; i < routes.length; i++) {
+                    const route = routes[i];
+                    const latlngs = route
+                        .filter(stop => !blockedArrets.includes(stop)) // Exclusion des arrêts bloqués
+                        .map(stop => {
+                            if (stops[stop]) {
+                                return [stops[stop].lat, stops[stop].lng];
+                            }
+                            return null;
+                        })
+                        .filter(coord => coord !== null);
+
+                    if (latlngs.length > 1) {
+                        const polyline = L.polyline(latlngs, {
+                            color: colors[agentIndex % colors.length],
+                            weight: 3,
+                            opacity: 0.7,
+                        });
+                        polyline.bindPopup(`<b>Agent ${parseInt(agent) + 1} - Route ${i + 1}</b>`);
+                        agentLayerGroup.addLayer(polyline);
+                    }
+                }
+
+                agentLayers['agent' + agent] = agentLayerGroup;
+                agentIndex++;
+            }
+
+            // Afficher tous les itinéraires
+            showAgent('all');
+        }
     </script>
 
 </body>
