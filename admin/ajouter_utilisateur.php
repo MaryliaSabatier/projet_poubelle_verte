@@ -88,7 +88,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 <body>
     <div class="container mt-5">
         <h2>Ajouter un utilisateur</h2>
-
+        <a href="gestion_utilisateurs.php" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Retour à la gestion des utilisateurs
+        </a>
         <?php if (!empty($error)) { echo "<div class='alert alert-danger'>$error</div>"; } ?>
 
         <form method="POST">

@@ -28,7 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['create_tournee'])) {
     if ($stmt->execute()) {
         $tourneeId = $conn->insert_id; // Récupérer l'ID de la tournée nouvellement créée
     } else {
-        echo "<div class='alert alert-danger'>Erreur lors de la création de la tournée.</div>";
+        echo "<div class='alert alert-danger'>Erreur : La création de la tournée a échoué. Veuillez réessayer ou contacter l'administrateur.</div>";
         exit();
     }
 
@@ -37,26 +37,27 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['create_tournee'])) {
     $resultCyclistesDisponibles = $conn->query($sqlCyclistesDisponibles);
 
     if (!$resultCyclistesDisponibles || $resultCyclistesDisponibles->num_rows == 0) {
-        echo "<div class='alert alert-warning'>Aucun cycliste disponible trouvé. Vérifiez les données dans la table `utilisateurs`.</div>";
+        echo "<div class='alert alert-warning'>Attention : Aucun cycliste disponible trouvé. Assurez-vous que la table `utilisateurs` est correctement mise à jour.</div>";
         exit();
     }
+    
 
     // Récupérer les vélos disponibles
     $sqlVelosDisponibles = "SELECT id FROM velos WHERE etat = 'operationnel'";
     $resultVelosDisponibles = $conn->query($sqlVelosDisponibles);
 
     if (!$resultVelosDisponibles || $resultVelosDisponibles->num_rows == 0) {
-        echo "<div class='alert alert-warning'>Aucun vélo disponible trouvé. Vérifiez les données dans la table `velos`.</div>";
+        echo "<div class='alert alert-warning'>Attention : Aucun vélo opérationnel disponible. Veuillez vérifier la table `velos`.</div>";
         exit();
     }
 
-    // Vérification que le nombre de vélos est suffisant pour le nombre de cyclistes disponibles
+    // Vérification du nombre de vélos par rapport aux cyclistes disponibles
     if ($resultCyclistesDisponibles->num_rows > $resultVelosDisponibles->num_rows) {
-        echo "<div class='alert alert-warning'>Pas assez de vélos disponibles pour créer la tournée.</div>";
+        echo "<div class='alert alert-warning'>Impossible de créer la tournée : Le nombre de vélos disponibles est insuffisant pour couvrir tous les cyclistes.</div>";
         exit();
     }
 
-    // Assigner les vélos aux cyclistes
+    // Associer les cyclistes disponibles aux vélos
     while ($cycliste = $resultCyclistesDisponibles->fetch_assoc()) {
         $cyclisteId = $cycliste['id'];
 
@@ -64,11 +65,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['create_tournee'])) {
         if ($velo = $resultVelosDisponibles->fetch_assoc()) {
             $veloId = $velo['id'];
 
-            // Associer le cycliste et le vélo à la tournée dans la table `tournees_cyclistes`
+            // Associer le cycliste et le vélo à la tournée
             $stmt = $conn->prepare("INSERT INTO tournees_cyclistes (tournee_id, cycliste_id, velo_id) VALUES (?, ?, ?)");
             $stmt->bind_param("iii", $tourneeId, $cyclisteId, $veloId);
             if (!$stmt->execute()) {
-                echo "<div class='alert alert-danger'>Erreur lors de l'association du cycliste et du vélo.</div>";
+                echo "<div class='alert alert-danger'>Erreur : Échec de l'association du cycliste (ID : $cyclisteId) avec un vélo.</div>";
                 exit();
             }
 
@@ -76,7 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['create_tournee'])) {
             $updateCycliste = $conn->prepare("UPDATE utilisateurs SET disponibilite = 'en tournée' WHERE id = ?");
             $updateCycliste->bind_param("i", $cyclisteId);
             if (!$updateCycliste->execute()) {
-                echo "<div class='alert alert-danger'>Erreur lors de la mise à jour du statut du cycliste.</div>";
+                echo "<div class='alert alert-danger'>Erreur : Impossible de mettre à jour le statut du cycliste (ID : $cyclisteId).</div>";
                 exit();
             }
 
@@ -84,13 +85,72 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['create_tournee'])) {
             $updateVelo = $conn->prepare("UPDATE velos SET etat = 'en_cours_utilisation' WHERE id = ?");
             $updateVelo->bind_param("i", $veloId);
             if (!$updateVelo->execute()) {
-                echo "<div class='alert alert-danger'>Erreur lors de la mise à jour de l'état du vélo.</div>";
+                echo "<div class='alert alert-danger'>Erreur : Impossible de mettre à jour l'état du vélo (ID : $veloId).</div>";
                 exit();
             }
         }
     }
 
     echo "<div class='alert alert-success'>Tournée créée avec succès ! Tous les cyclistes disponibles et les vélos ont été assignés.</div>";
+}
+
+// Traitement pour lancer la tournée
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['launch_tournee'])) {
+    $tourneeId = $_POST['tournee_id'];
+
+    // Mettre à jour l'état de la tournée à 'en cours'
+    $stmt = $conn->prepare("UPDATE tournees SET etat = 'en cours', heure_debut = NOW() WHERE id = ?");
+    $stmt->bind_param("i", $tourneeId);
+    if ($stmt->execute()) {
+        echo "<div class='alert alert-success'>La tournée (ID : $tourneeId) a été lancée avec succès !</div>";
+    } else {
+        echo "<div class='alert alert-danger'>Erreur : Impossible de lancer la tournée (ID : $tourneeId).</div>";
+    }
+
+    // Rediriger vers la carte pour visualiser la tournée
+    header("Location: index.html?tournee_id=$tourneeId");
+    exit();
+}
+
+// Traitement pour supprimer une tournée et remettre les cyclistes et les vélos disponibles
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['delete_tournee'])) {
+    $tourneeId = $_POST['tournee_id'];
+
+    // Supprimer les incidents liés à la tournée
+    $stmtDeleteIncidents = $conn->prepare("DELETE FROM incidents WHERE tournee_id = ?");
+    $stmtDeleteIncidents->bind_param("i", $tourneeId);
+    $stmtDeleteIncidents->execute();
+
+    // Récupérer les cyclistes et vélos associés à la tournée
+    $stmt = $conn->prepare("SELECT cycliste_id, velo_id FROM tournees_cyclistes WHERE tournee_id = ?");
+    $stmt->bind_param("i", $tourneeId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    // Réinitialiser la disponibilité des cyclistes et des vélos
+    while ($row = $result->fetch_assoc()) {
+        $cyclisteId = $row['cycliste_id'];
+        $veloId = $row['velo_id'];
+
+        $updateCycliste = $conn->prepare("UPDATE utilisateurs SET disponibilite = 'disponible' WHERE id = ?");
+        $updateCycliste->bind_param("i", $cyclisteId);
+        $updateCycliste->execute();
+
+        $updateVelo = $conn->prepare("UPDATE velos SET etat = 'operationnel' WHERE id = ?");
+        $updateVelo->bind_param("i", $veloId);
+        $updateVelo->execute();
+    }
+
+    // Supprimer les enregistrements associés
+    $stmt = $conn->prepare("DELETE FROM tournees_cyclistes WHERE tournee_id = ?");
+    $stmt->bind_param("i", $tourneeId);
+    $stmt->execute();
+
+    $stmt = $conn->prepare("DELETE FROM tournees WHERE id = ?");
+    $stmt->bind_param("i", $tourneeId);
+    $stmt->execute();
+
+    echo "<div class='alert alert-success'>La tournée (ID : $tourneeId) a été supprimée avec succès. Les cyclistes et vélos sont de nouveau disponibles.</div>";
 }
 
 
@@ -171,84 +231,94 @@ $resultTournees = $conn->query($sqlTournees);
 </head>
 
 <body>
-    <div class="container mt-5">
-        <h1 class="text-center mb-4">Gestion des tournées</h1>
-        <a href="../logout.php" class="btn btn-danger logout-btn">Déconnexion</a>
+<div class="container mt-5">
+    <h1 class="text-center mb-4">Gestion des tournées</h1>
+    <a href="../logout.php" class="btn btn-danger logout-btn">Déconnexion</a>
 
-        <div class="row">
-            <div class="col-md-3">
-                <ul class="nav flex-column">
-                    <li class="nav-item">
-                        <a class="nav-link" href="gestionnaire_reseau.php">Tableau de bord</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link active" href="gestion_tournees.php">Gestion des tournées</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="gestion_velos.php">Gestion des vélos</a>
-                    </li>
-                </ul>
-            </div>
-            <div class="col-md-9">
-                <h2>Bienvenue, <?php echo htmlspecialchars($_SESSION['prenom']); ?>!</h2>
+    <div class="row">
+        <div class="col-md-3">
+            <ul class="nav flex-column">
+                <li class="nav-item">
+                    <a class="nav-link" href="gestionnaire_reseau.php">Tableau de bord</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link active" href="gestion_tournees.php">Gestion des tournées</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="gestion_velos.php">Gestion des vélos</a>
+                </li>
+            </ul>
+        </div>
+        <div class="col-md-9">
+            <h2>Bienvenue, <?php echo htmlspecialchars($_SESSION['prenom']); ?>!</h2>
 
-                <!-- Formulaire pour créer une nouvelle tournée -->
-                <form method="POST">
-                    <input type="hidden" name="create_tournee" value="1">
-                    <button type="submit" class="btn btn-success mb-4">Créer une tournée</button>
-                </form>
+            <!-- Affichage des messages -->
+            <?php if (isset($message)): ?>
+                <div class="alert alert-success"><?php echo htmlspecialchars($message); ?></div>
+            <?php endif; ?>
+            <?php if (isset($error)): ?>
+                <div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div>
+            <?php endif; ?>
 
-                <h3>Liste des tournées</h3>
+            <!-- Formulaire pour créer une nouvelle tournée -->
+            <form method="POST">
+                <input type="hidden" name="create_tournee" value="1">
+                <button type="submit" class="btn btn-success mb-4">Créer une tournée</button>
+            </form>
 
-                <?php if ($resultTournees->num_rows > 0): ?>
-                    <?php while ($row = $resultTournees->fetch_assoc()): ?>
-                        <div class='tournee'>
-                            <h4>Tournée ID: <?php echo $row['tournee_id']; ?> - Date: <?php echo $row['date']; ?> - Cyclistes: <?php echo $row['nombre_cyclistes']; ?> - Vélos: <?php echo $row['nombre_velos']; ?></h4>
-                            <div class='d-flex justify-content-between mt-3'>
-                                <a href="trajet.php?tournee_id=<?php echo $row['tournee_id']; ?>" class="btn btn-info btn-sm">Visualisation Trajet</a>
-                                <!-- Si la tournée est en cours, afficher le bouton "Terminer la tournée" -->
-                                <?php if ($row['etat'] == 'en cours'): ?>
-                                    <form method='POST' class='d-inline'>
-                                        <input type='hidden' name='tournee_id' value='<?php echo $row['tournee_id']; ?>'>
-                                        <button type='submit' class='btn btn-success btn-sm' name='end_tournee' onclick="return confirm('Êtes-vous sûr de vouloir terminer cette tournée ?')">Terminer la tournée</button>
-                                    </form>
-                                <?php endif; ?>
+            <h3>Liste des tournées</h3>
 
-                                <!-- Si la tournée n'est pas encore lancée, afficher le bouton pour la lancer -->
-                                <?php if ($row['etat'] == 'prévue'): ?>
-                                    <form method='POST' class='d-inline'>
-                                        <input type='hidden' name='tournee_id' value='<?php echo $row['tournee_id']; ?>'>
-                                        <button type='submit' class='btn btn-primary btn-sm' name='launch_tournee'>Lancer la tournée</button>
-                                    </form>
-                                <?php endif; ?>
-                                <!-- Si pas assez de vélos, afficher le bouton pour aller à la gestion des vélos -->
-                                <?php if ($row['nombre_velos'] < $row['nombre_cyclistes']): ?>
-                                    <a href="gestion_velos.php" class="btn btn-warning btn-sm">Ajouter des vélos</a>
-                                <?php endif; ?>
-
-                                <!-- Nouveau bouton pour réassigner les vélos -->
+            <?php if ($resultTournees->num_rows > 0): ?>
+                <?php while ($row = $resultTournees->fetch_assoc()): ?>
+                    <div class='tournee'>
+                        <h4>Tournée ID: <?php echo $row['tournee_id']; ?> - Date: <?php echo $row['date']; ?> - Cyclistes: <?php echo $row['nombre_cyclistes']; ?> - Vélos: <?php echo $row['nombre_velos']; ?></h4>
+                        <div class='d-flex justify-content-between mt-3'>
+                            <a href="trajet.php?tournee_id=<?php echo $row['tournee_id']; ?>" class="btn btn-info btn-sm">Visualisation Trajet</a>
+                            
+                            <!-- Si la tournée est en cours, afficher le bouton "Terminer la tournée" -->
+                            <?php if ($row['etat'] == 'en cours'): ?>
                                 <form method='POST' class='d-inline'>
                                     <input type='hidden' name='tournee_id' value='<?php echo $row['tournee_id']; ?>'>
-                                    <button type='submit' class='btn btn-secondary btn-sm' name='reassigner_velos'>Réassigner les vélos</button>
+                                    <button type='submit' class='btn btn-success btn-sm' name='end_tournee' onclick="return confirm('Êtes-vous sûr de vouloir terminer cette tournée ?')">Terminer la tournée</button>
                                 </form>
+                            <?php endif; ?>
 
-                                <!-- Formulaire pour supprimer la tournée -->
+                            <!-- Si la tournée n'est pas encore lancée, afficher le bouton pour la lancer -->
+                            <?php if ($row['etat'] == 'prévue'): ?>
                                 <form method='POST' class='d-inline'>
                                     <input type='hidden' name='tournee_id' value='<?php echo $row['tournee_id']; ?>'>
-                                    <button type='submit' class='btn btn-danger btn-sm' name='delete_tournee' onclick="return confirm('Êtes-vous sûr de vouloir supprimer cette tournée ?')">Supprimer</button>
+                                    <button type='submit' class='btn btn-primary btn-sm' name='launch_tournee'>Lancer la tournée</button>
                                 </form>
-                            </div>
+                            <?php endif; ?>
+                            
+                            <!-- Si pas assez de vélos, afficher le bouton pour aller à la gestion des vélos -->
+                            <?php if ($row['nombre_velos'] < $row['nombre_cyclistes']): ?>
+                                <a href="gestion_velos.php" class="btn btn-warning btn-sm">Ajouter des vélos</a>
+                            <?php endif; ?>
+
+                            <!-- Nouveau bouton pour réassigner les vélos -->
+                            <form method='POST' class='d-inline'>
+                                <input type='hidden' name='tournee_id' value='<?php echo $row['tournee_id']; ?>'>
+                                <button type='submit' class='btn btn-secondary btn-sm' name='reassigner_velos'>Réassigner les vélos</button>
+                            </form>
+
+                            <!-- Formulaire pour supprimer la tournée -->
+                            <form method='POST' class='d-inline'>
+                                <input type='hidden' name='tournee_id' value='<?php echo $row['tournee_id']; ?>'>
+                                <button type='submit' class='btn btn-danger btn-sm' name='delete_tournee' onclick="return confirm('Êtes-vous sûr de vouloir supprimer cette tournée ?')">Supprimer</button>
+                            </form>
                         </div>
-                        <hr>
-                    <?php endwhile; ?>
-                <?php else: ?>
-                    <p>Aucune tournée n'est disponible pour le moment.</p>
-                <?php endif; ?>
-            </div>
+                    </div>
+                    <hr>
+                <?php endwhile; ?>
+            <?php else: ?>
+                <p>Aucune tournée n'est disponible pour le moment.</p>
+            <?php endif; ?>
         </div>
     </div>
+</div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 
 </html>
