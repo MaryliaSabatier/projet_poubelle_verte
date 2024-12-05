@@ -1,13 +1,9 @@
--- Création de la base de données
-CREATE DATABASE IF NOT EXISTS poubelle_verte;
-USE poubelle_verte;
-
 -- phpMyAdmin SQL Dump
 -- version 5.2.1
 -- https://www.phpmyadmin.net/
 --
 -- Hôte : 127.0.0.1
--- Généré le : jeu. 14 nov. 2024 à 11:26
+-- Généré le : jeu. 05 déc. 2024 à 11:32
 -- Version du serveur : 10.4.32-MariaDB
 -- Version de PHP : 8.2.12
 
@@ -20,7 +16,7 @@ SET time_zone = "+00:00";
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
 /*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
 /*!40101 SET NAMES utf8mb4 */;
-                   
+
 --
 -- Base de données : `poubelle_verte`
 --
@@ -1026,7 +1022,27 @@ CREATE TABLE `incidents` (
   `type_incident` varchar(100) NOT NULL,
   `date` date NOT NULL,
   `heure` time NOT NULL,
-  `description` text DEFAULT NULL
+  `status` enum('en_cours','resolu') DEFAULT 'en_cours',
+  `impact` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`impact`)),
+  `description` text DEFAULT NULL,
+  `resolved_at` datetime DEFAULT NULL,
+  `resolution` text DEFAULT NULL,
+  `arret` varchar(255) NOT NULL,
+  `arret_id` int(11) DEFAULT NULL,
+  `rue_id` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Structure de la table `itineraire`
+--
+
+CREATE TABLE `itineraire` (
+  `id` int(11) NOT NULL,
+  `arret_id` int(11) NOT NULL,
+  `ordre` int(11) NOT NULL,
+  `type` enum('aller','retour') NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -1126,7 +1142,8 @@ CREATE TABLE `tournees` (
 --
 
 INSERT INTO `tournees` (`id`, `date`, `cycliste_id`, `velo_id`, `heure_debut`, `heure_fin`, `etat`) VALUES
-(1, '2024-11-12', NULL, NULL, '10:42:42', NULL, '');
+(12, '2024-12-04', NULL, NULL, '16:09:19', NULL, ''),
+(15, '2024-12-04', NULL, NULL, '19:54:45', NULL, '');
 
 -- --------------------------------------------------------
 
@@ -1140,6 +1157,16 @@ CREATE TABLE `tournees_cyclistes` (
   `cycliste_id` int(11) NOT NULL,
   `velo_id` int(11) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Déchargement des données de la table `tournees_cyclistes`
+--
+
+INSERT INTO `tournees_cyclistes` (`id`, `tournee_id`, `cycliste_id`, `velo_id`) VALUES
+(10, 12, 4, 1),
+(11, 12, 12, 2),
+(12, 12, 13, 3),
+(13, 15, 16, 6);
 
 -- --------------------------------------------------------
 
@@ -1155,18 +1182,23 @@ CREATE TABLE `utilisateurs` (
   `mot_de_passe` varchar(255) NOT NULL,
   `role_id` int(11) NOT NULL,
   `date_embauche` date DEFAULT NULL,
-  `disponibilite` varchar(255) DEFAULT NULL
+  `disponibilite` varchar(255) DEFAULT NULL,
+  `type_absence` enum('disponible','malade','congé') DEFAULT 'disponible'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Déchargement des données de la table `utilisateurs`
 --
 
-INSERT INTO `utilisateurs` (`id`, `nom`, `prenom`, `email`, `mot_de_passe`, `role_id`, `date_embauche`, `disponibilite`) VALUES
-(1, 'AdminPoubelleVerte', 'Admin', 'admin@poubelleverte.com', '*CC67043C7BCFF5EEA5566BD9B1F3C74FD9A5CF5D', 1, NULL, NULL),
-(2, 'rh', 'rh', 'rh@poubelleverte.com', '123456789', 2, '0000-00-00', ''),
-(3, 'gestionnaire', 'reseau', 'gestionnairereseau@poubelleverte.com', '123456789', 4, '0000-00-00', ''),
-(4, 'Dupond', 'Pierre', 'pierre@poubelleverte.com', '123456789', 3, '2024-11-11', 'OUI');
+INSERT INTO `utilisateurs` (`id`, `nom`, `prenom`, `email`, `mot_de_passe`, `role_id`, `date_embauche`, `disponibilite`, `type_absence`) VALUES
+(1, 'AdminPoubelleVerte', 'Admin', 'admin@poubelleverte.com', '123456789', 1, NULL, 'malade', 'malade'),
+(2, 'rh', 'rh', 'rh@poubelleverte.com', '123456789', 2, '0000-00-00', 'disponible', NULL),
+(3, 'gestionnaire', 'reseau', 'gestionnairereseau@poubelleverte.com', '123456789', 4, '0000-00-00', '', 'disponible'),
+(4, 'Dupond', 'Pierre', 'pierre@poubelleverte.com', '123456789', 3, '2024-11-11', 'en tournée', 'disponible'),
+(5, 'Admin', 'poubelle', 'admin@poubelle.com', '123456789', 4, '0000-00-00', '', 'disponible'),
+(12, 'cycl1', '1', 'cycliste1@gmail.com', '0', 3, '2024-11-26', 'en tournée', 'disponible'),
+(13, 'user', 'cycliste', 'user@gmail.com', '0', 3, '2024-11-26', 'en tournée', 'disponible'),
+(16, 'cycliste', '2', 'cycliste2@gmail.com', '123456789', 3, '2024-12-16', 'en tournée', 'disponible');
 
 -- --------------------------------------------------------
 
@@ -1181,6 +1213,16 @@ CREATE TABLE `velos` (
   `autonomie_km` int(11) NOT NULL DEFAULT 50,
   `date_derniere_revision` date DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Déchargement des données de la table `velos`
+--
+
+INSERT INTO `velos` (`id`, `numero`, `etat`, `autonomie_km`, `date_derniere_revision`) VALUES
+(1, '1', 'en_cours_utilisation', 50, '2024-11-29'),
+(2, '2', 'en_cours_utilisation', 50, '2024-12-26'),
+(3, '3', 'en_cours_utilisation', 50, '2024-12-07'),
+(6, '4', 'en_cours_utilisation', 50, '2024-12-19');
 
 --
 -- Index pour les tables déchargées
@@ -1229,7 +1271,16 @@ ALTER TABLE `etat_rues`
 --
 ALTER TABLE `incidents`
   ADD PRIMARY KEY (`id`),
-  ADD KEY `tournee_id` (`tournee_id`);
+  ADD KEY `tournee_id` (`tournee_id`),
+  ADD KEY `fk_arret` (`arret_id`),
+  ADD KEY `fk_rue` (`rue_id`);
+
+--
+-- Index pour la table `itineraire`
+--
+ALTER TABLE `itineraire`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `arret_id` (`arret_id`);
 
 --
 -- Index pour la table `points_passage`
@@ -1321,6 +1372,12 @@ ALTER TABLE `etat_rues`
 -- AUTO_INCREMENT pour la table `incidents`
 --
 ALTER TABLE `incidents`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=19;
+
+--
+-- AUTO_INCREMENT pour la table `itineraire`
+--
+ALTER TABLE `itineraire`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
@@ -1345,25 +1402,25 @@ ALTER TABLE `rues`
 -- AUTO_INCREMENT pour la table `tournees`
 --
 ALTER TABLE `tournees`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=24;
 
 --
 -- AUTO_INCREMENT pour la table `tournees_cyclistes`
 --
 ALTER TABLE `tournees_cyclistes`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
 
 --
 -- AUTO_INCREMENT pour la table `utilisateurs`
 --
 ALTER TABLE `utilisateurs`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=17;
 
 --
 -- AUTO_INCREMENT pour la table `velos`
 --
 ALTER TABLE `velos`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- Contraintes pour les tables déchargées
@@ -1401,7 +1458,15 @@ ALTER TABLE `etat_rues`
 -- Contraintes pour la table `incidents`
 --
 ALTER TABLE `incidents`
+  ADD CONSTRAINT `fk_arret` FOREIGN KEY (`arret_id`) REFERENCES `arrets` (`id`),
+  ADD CONSTRAINT `fk_rue` FOREIGN KEY (`rue_id`) REFERENCES `rues` (`id`),
   ADD CONSTRAINT `incidents_ibfk_1` FOREIGN KEY (`tournee_id`) REFERENCES `tournees` (`id`);
+
+--
+-- Contraintes pour la table `itineraire`
+--
+ALTER TABLE `itineraire`
+  ADD CONSTRAINT `itineraire_ibfk_1` FOREIGN KEY (`arret_id`) REFERENCES `arrets` (`id`);
 
 --
 -- Contraintes pour la table `points_passage`
