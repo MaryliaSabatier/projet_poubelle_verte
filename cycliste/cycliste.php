@@ -248,7 +248,7 @@ $stops = array(
     "Reuilly-Diderot" => array("lat" => 48.8489, "lng" => 2.3850),
     "Daumesnil" => array("lat" => 48.8360, "lng" => 2.3930),
     "Place d'Italie" => array("lat" => 48.8319, "lng" => 2.3551),
-    
+
     // Rue du Taur
     "Pont de Sèvres" => array("lat" => 48.8299, "lng" => 2.2335),
     "Billancourt" => array("lat" => 48.8330, "lng" => 2.2404),
@@ -967,6 +967,7 @@ $utilisateursDisponibles = $pdo->query($sqlUtilisateur)->fetchAll();
 // Nombre d'agents = nombre de vélos disponibles ou nombre d'utilisateurs disponibles, le plus petit
 $numAgents = min(count($velosDisponibles), count($utilisateursDisponibles));
 
+
 // Autres paramètres
 $groupSize = 4; // Nombre d'arrêts avant de revenir à "Porte d'Ivry"
 $startStop = "Porte d'Ivry"; // Point de départ
@@ -1027,9 +1028,95 @@ foreach ($allRoutes as $route) {
     $routeIndex++;
 }
 
+// Récupérer les incidents
+try {
+    $sqlIncidents = "SELECT arret, description, DATE_FORMAT(date, '%d/%m/%Y %H:%i') AS date FROM incidents";
+    $incidents = $pdo->query($sqlIncidents)->fetchAll();
+} catch (PDOException $e) {
+    die("Erreur lors de la récupération des incidents : " . $e->getMessage());
+}
+// Récupération des incidents enregistrés (uniquement non résolus)
+$sqlIncidents = "
+SELECT 
+    i.id, 
+    i.tournee_id, 
+    i.type_incident, 
+    i.date, 
+    i.heure, 
+    i.description, 
+    i.resolution, 
+    i.resolved_at, 
+    t.date AS tournee_date, 
+    t.heure_debut, 
+    t.heure_fin,
+    COALESCE(a.libelle, 'Aucun') AS arret_libelle, -- Valeur par défaut si NULL
+    COALESCE(r.libelle, 'Aucune') AS rue_libelle  -- Valeur par défaut si NULL
+FROM incidents i
+LEFT JOIN tournees t ON i.tournee_id = t.id
+LEFT JOIN arrets a ON i.arret_id = a.id
+LEFT JOIN rues r ON i.rue_id = r.id
+WHERE i.resolved_at IS NULL -- Filtrer uniquement les incidents non résolus
+ORDER BY i.date DESC, i.heure DESC
+";
+
+// Utilisation de PDO
+try {
+    $resultIncidents = $pdo->query($sqlIncidents)->fetchAll();
+} catch (PDOException $e) {
+    die("Erreur lors de la récupération des incidents : " . $e->getMessage());
+}
+
+// Récupérer les incidents non résolus
+$sqlIncidents = "
+SELECT 
+    i.id, 
+    i.type_incident, 
+    i.date, 
+    i.heure, 
+    i.description, 
+    COALESCE(a.libelle, 'Aucun') AS arret_libelle, 
+    COALESCE(r.libelle, 'Aucune') AS rue_libelle
+FROM incidents i
+LEFT JOIN arrets a ON i.arret_id = a.id
+LEFT JOIN rues r ON i.rue_id = r.id
+WHERE i.resolved_at IS NULL
+ORDER BY i.date DESC, i.heure DESC
+";
+
+try {
+    $incidents = $pdo->query($sqlIncidents)->fetchAll();
+} catch (PDOException $e) {
+    die("Erreur lors de la récupération des incidents : " . $e->getMessage());
+}
+
+// Récupérer les arrêts bloqués à cause des incidents
+// Récupérer les arrêts et rues bloqués
+$sqlBlockedStops = "
+    SELECT 
+        a.libelle AS arret_libelle
+    FROM incidents i
+    LEFT JOIN arrets a ON i.arret_id = a.id
+    WHERE i.resolved_at IS NULL
+";
+try {
+    $blockedStops = $pdo->query($sqlBlockedStops)->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    die("Erreur lors de la récupération des arrêts bloqués : " . $e->getMessage());
+}
+
+$blockedArrets = array_column($blockedStops, 'arret_libelle');
+$blockedRues = array_column($blockedStops, 'rue_libelle');
+
+// Filtrer les arrêts bloqués
+// Exclusion des arrêts et rues bloqués
+$stopsToVisit = array_filter($stopsToVisit, function ($stop) use ($blockedStops) {
+    return !in_array(trim($stop), $blockedStops);
+});
+
 ?>
 <!DOCTYPE html>
 <html>
+
 <head>
     <meta charset="utf-8" />
     <title>Itinéraires des vélos de la tournée</title>
@@ -1044,25 +1131,29 @@ foreach ($allRoutes as $route) {
             height: 600px;
             margin-top: 20px;
         }
+
         body {
             margin: 0;
             padding: 0;
         }
+
         .agent {
             margin-bottom: 20px;
         }
+
         .revisited {
             color: red;
             text-decoration: underline;
         }
     </style>
 </head>
+
 <body>
     <div class="container mt-5">
         <a href="../logout.php" class="btn btn-danger logout-btn">Déconnexion</a>
         <h1 class="text-center text-primary mb-4">Votre tournée</h1>
 
-    
+
 
         <!-- Liste des agents -->
         <div class="card mb-4">
@@ -1070,54 +1161,67 @@ foreach ($allRoutes as $route) {
                 <h2 class="card-title">Votre velo Attribuer</h2>
                 <ul class="list-group">
                     <?php
-                        $i = 0;
-                        $agent = $utilisateursDisponibles[$i];
-                        $velo = $velosDisponibles[$i];
-                        echo "<li class='list-group-item'>Vous etes le cycliste " . ($i + 1) . ": " . htmlspecialchars($agent['prenom'] . " " . $agent['nom']) .
-                            " (Vélo #" . htmlspecialchars($velo['numero']) . ")</li>";
+                    $i = 0;
+                    $agent = $utilisateursDisponibles[$i];
+                    $velo = $velosDisponibles[$i];
+                    echo "<li class='list-group-item'>Vous etes le cycliste " . ($i + 1) . ": " . htmlspecialchars($agent['prenom'] . " " . $agent['nom']) .
+                        " (Vélo #" . htmlspecialchars($velo['numero']) . ")</li>";
                     ?>
                 </ul>
             </div>
         </div>
+        <div class="container mt-5">
+            <h1 class="text-center">Incidents Signalés</h1>
 
-        <!-- Sélection de l'agent -->
-      
+            <!-- Liste des incidents -->
+            <div class="card mt-4">
+                <div class="card-body">
+                    <h2 class="card-title">Liste des incidents</h2>
+                    <?php if (!empty($incidents)): ?>
+                        <ul class="list-group">
+                            <?php foreach ($incidents as $incident): ?>
+                                <li class="list-group-item">
+                                    <strong>Arrêt :</strong> <?= htmlspecialchars($incident['arret_libelle']) ?><br>
+                                    <strong>Rue :</strong> <?= htmlspecialchars($incident['rue_libelle']) ?><br>
+                                    <strong>Description :</strong> <?= htmlspecialchars($incident['description']) ?><br>
+                                    <strong>Date :</strong> <?= htmlspecialchars($incident['date']) ?>
+                                    <strong>Heure :</strong> <?= htmlspecialchars($incident['heure']) ?>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+                    <?php else: ?>
+                        <p class="text-muted">Aucun incident signalé.</p>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
 
-        <!-- Affichage des itinéraires -->
         <div>
-         
-        
+            <?php
+            $agentIndex = 0; // Index de l'agent à afficher (0 pour l'agent 1)
+            if (isset($itineraries[$agentIndex])) {
+                $routes = $itineraries[$agentIndex];
 
+                echo "<div class='agent card mb-4' id='agent" . $agentIndex . "'>";
+                echo "<div class='card-body'>";
+                echo "<h2 class='card-title'>Itinéraire pour l'agent " . ($agentIndex + 1) . "</h2>";
 
-        <!-- afficher seulement l'agent 1 -->
+                foreach ($routes as $routeIndex => $route) {
+                    echo "<h3>Route " . ($routeIndex + 1) . "</h3>";
+                    echo "<ul class='list-group'>";
+                    foreach ($route as $stop) {
+                        echo "<li class='list-group-item'>" . htmlspecialchars($stop) . "</li>";
+                    }
+                    echo "</ul>";
+                }
 
-
-
-
-    <?php
-    $agentIndex = 0; // Index de l'agent à afficher (0 pour l'agent 1)
-    if (isset($itineraries[$agentIndex])) {
-        $routes = $itineraries[$agentIndex];
-
-        echo "<div class='agent card mb-4' id='agent" . $agentIndex . "'>";
-        echo "<div class='card-body'>";
-        echo "<h2 class='card-title'>Itinéraire pour l'agent " . ($agentIndex + 1) . "</h2>";
-
-        foreach ($routes as $routeIndex => $route) {
-            echo "<h3>Route " . ($routeIndex + 1) . "</h3>";
-            echo "<ul class='list-group'>";
-            foreach ($route as $stop) {
-                echo "<li class='list-group-item'>" . htmlspecialchars($stop) . "</li>";
+                echo "</div>";
+                echo "</div>";
+            } else {
+                echo "<p>Aucun itinéraire trouvé pour l'agent " . ($agentIndex + 1) . ".</p>";
             }
-            echo "</ul>";
-        }
-
-        echo "</div>";
-        echo "</div>";
-    } else {
-        echo "<p>Aucun itinéraire trouvé pour l'agent " . ($agentIndex + 1) . ".</p>";
-    }
-    ?>
-</div>
+            ?>
+        </div>
 </body>
+
 </html>

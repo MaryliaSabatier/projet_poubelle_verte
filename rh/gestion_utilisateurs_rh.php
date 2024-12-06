@@ -59,7 +59,7 @@ if (isset($_GET['action']) && isset($_GET['id'])) {
             exit();
         }
     } elseif ($action == 'marquer_disponible') {
-        $stmt = $conn->prepare("UPDATE utilisateurs SET disponibilite = NULL WHERE id = ?");
+        $stmt = $conn->prepare("UPDATE utilisateurs SET disponibilite = 'disponible' WHERE id = ?");
         $stmt->bind_param("i", $userId);
         if ($stmt->execute()) {
             header('Location: gestion_utilisateurs_rh.php');
