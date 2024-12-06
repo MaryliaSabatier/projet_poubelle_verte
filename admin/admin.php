@@ -102,6 +102,7 @@ $conn->close();
             </div>
             <div class="col-md-9">
                 <h3>Tableau de bord</h3>
+                <h2>Bienvenue, <?php echo $_SESSION['prenom']; ?>!</h2>
                 <div class="row">
                     <!-- Total Utilisateurs -->
                     <div class="col-md-4">
