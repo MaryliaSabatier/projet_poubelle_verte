@@ -1,8 +1,8 @@
 <?php
 session_start();
 
-// Vérification de la connexion et du rôle de gestionnaire de réseau
-if (!isset($_SESSION['user_id']) || $_SESSION['role_id'] != 4) { // 4 = ID du rôle gestionnaire de réseau
+// Vérification de la connexion et du rôle (administrateur ou gestionnaire de réseau)
+if (!isset($_SESSION['user_id']) || ($_SESSION['role_id'] != 1 && $_SESSION['role_id'] != 4)) {
     header('Location: ../login.php');
     exit();
 }

@@ -1,8 +1,8 @@
 <?php
 session_start();
 
-// Vérification de la connexion et du rôle de gestionnaire de réseau
-if (!isset($_SESSION['user_id']) || $_SESSION['role_id'] != 4) {
+// Vérification de la connexion et du rôle (administrateur ou gestionnaire de réseau)
+if (!isset($_SESSION['user_id']) || ($_SESSION['role_id'] != 1 && $_SESSION['role_id'] != 4)) {
     header('Location: ../login.php');
     exit();
 }
@@ -17,6 +17,8 @@ $conn = new mysqli($servername, $username_db, $password_db, $dbname);
 if ($conn->connect_error) {
     die("La connexion a échoué : " . $conn->connect_error);
 }
+
+
 
 // Requête pour récupérer tous les vélos
 $sqlVelos = "SELECT id, numero, etat, autonomie_km, date_derniere_revision FROM velos";
