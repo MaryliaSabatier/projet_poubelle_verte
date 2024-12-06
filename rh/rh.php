@@ -54,6 +54,7 @@ $conn->close();
                 </ul>
             </div>
             <div class="col-md-9">
+            <h2>Bienvenue, <?php echo $_SESSION['prenom']; ?>!</h2>
                 <h3>Tableau de bord</h3>
                 <div class="row">
                     <!-- Total Utilisateurs -->

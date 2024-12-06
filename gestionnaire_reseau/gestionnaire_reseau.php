@@ -45,6 +45,7 @@ $totalIncidents = $resultTotalIncidents->fetch_assoc()['total'];
 
 <!DOCTYPE html>
 <html>
+
 <head>
     <title>Interface Gestionnaire de Réseau</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
@@ -56,6 +57,7 @@ $totalIncidents = $resultTotalIncidents->fetch_assoc()['total'];
         }
     </style>
 </head>
+
 <body>
     <div class="container mt-5">
         <h1 class="text-center mb-4">Interface Gestionnaire de Réseau</h1>
@@ -65,7 +67,7 @@ $totalIncidents = $resultTotalIncidents->fetch_assoc()['total'];
         <a href="../map/index2.html" class="btn btn-primary mb-3">Visualiser la carte 3</a>
 
 
-        <div class="row">
+        <div class="row mt-4">
             <div class="col-md-3">
                 <ul class="nav flex-column">
                     <li class="nav-item">
@@ -86,53 +88,64 @@ $totalIncidents = $resultTotalIncidents->fetch_assoc()['total'];
             <div class="col-md-9">
                 <h2>Bienvenue, <?php echo $_SESSION['prenom']; ?>!</h2>
 
-                <h3>Tableau de bord</h3>
-                <div class="row">
-                    <div class="col-md-4">
-                        <div class="card">
-                            <div class="card-body">
+                <h3 class="mt-4 mb-3">Tableau de bord</h3>
+                <div class="row g-4">
+                    <!-- Carte : Total Vélos -->
+                    <div class="col-md-6">
+                        <div class="card text-bg-primary mb-3">
+                            <div class="card-body text-center">
                                 <h5 class="card-title">Total Vélos</h5>
-                                <p class="card-text"><?php echo $totalVelos; ?></p>
+                                <p class="card-text display-6"><?php echo $totalVelos; ?></p>
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-4">
-                        <div class="card">
-                            <div class="card-body">
+
+                    <!-- Carte : Vélos Opérationnels -->
+                    <div class="col-md-6">
+                        <div class="card text-bg-success mb-3">
+                            <div class="card-body text-center">
                                 <h5 class="card-title">Vélos Opérationnels</h5>
-                                <p class="card-text"><?php echo $velosOperationnels; ?></p>
+                                <p class="card-text display-6"><?php echo $velosOperationnels; ?></p>
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-4">
-                        <div class="card">
-                            <div class="card-body">
+
+                    <!-- Carte : Vélos en Maintenance -->
+                    <div class="col-md-6">
+                        <div class="card text-bg-warning mb-3">
+                            <div class="card-body text-center">
                                 <h5 class="card-title">Vélos en Maintenance</h5>
-                                <p class="card-text"><?php echo $velosMaintenance; ?></p>
+                                <p class="card-text display-6"><?php echo $velosMaintenance; ?></p>
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-4">
-                        <div class="card">
-                            <div class="card-body">
+
+                    <!-- Carte : Tournées Planifiées -->
+                    <div class="col-md-6">
+                        <div class="card text-bg-info mb-3">
+                            <div class="card-body text-center">
                                 <h5 class="card-title">Tournées Planifiées</h5>
-                                <p class="card-text"><?php echo $tourneesPlanifiees; ?></p>
+                                <p class="card-text display-6"><?php echo $tourneesPlanifiees; ?></p>
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-4">
-                        <div class="card">
-                            <div class="card-body">
+
+                    <!-- Carte : Tournées en Cours -->
+                    <div class="col-md-6">
+                        <div class="card text-bg-secondary mb-3">
+                            <div class="card-body text-center">
                                 <h5 class="card-title">Tournées en Cours</h5>
-                                <p class="card-text"><?php echo $tourneesEnCours; ?></p>
+                                <p class="card-text display-6"><?php echo $tourneesEnCours; ?></p>
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-4">
-                        <div class="card">
-                            <div class="card-body">
+
+                    <!-- Carte : Total Incidents -->
+                    <div class="col-md-6">
+                        <div class="card text-bg-danger mb-3">
+                            <div class="card-body text-center">
                                 <h5 class="card-title">Total Incidents</h5>
-                                <p class="card-text"><?php echo $totalIncidents; ?></p>
+                                <p class="card-text display-6"><?php echo $totalIncidents; ?></p>
                             </div>
                         </div>
                     </div>
@@ -140,7 +153,7 @@ $totalIncidents = $resultTotalIncidents->fetch_assoc()['total'];
             </div>
         </div>
     </div>
-
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
+
 </html>
