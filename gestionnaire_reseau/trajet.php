@@ -1,6 +1,4 @@
 <?php
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
 $stops = array(
@@ -1127,6 +1125,90 @@ while (!empty($stopsToVisit)) {
 
 echo json_encode(['itineraries' => $allRoutes]);
 
+function calculateDistance($lat1, $lon1, $lat2, $lon2)
+{
+    $earthRadius = 6371; // Rayon moyen de la Terre en km
+
+    // Convertir les degrés en radians
+    $dLat = deg2rad($lat2 - $lat1);
+    $dLon = deg2rad($lon2 - $lon1);
+
+    // Calcul de la distance haversine
+    $a = sin($dLat / 2) * sin($dLat / 2) +
+        cos(deg2rad($lat1)) * cos(deg2rad($lat2)) *
+        sin($dLon / 2) * sin($dLon / 2);
+    $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
+
+    return $earthRadius * $c; // Distance en km
+}
+
+
+// Configuration
+$autonomy = 50; // km
+$autonomyPer20Lights = 1; // km
+$winterPenalty = 0.9; // 10% reduction in winter
+$wastePenaltyPer50kg = 2; // km
+$maxWeight = 200; // kg
+$pickupSpeed = 5; // km/h
+$routeSpeed = 20; // km/h
+$winter = true; // Set true for winter calculations
+
+// Vérifier qu'un itinéraire existe pour éviter les erreurs
+if (empty($route)) {
+    die("Erreur : Aucun itinéraire trouvé pour effectuer le calcul.");
+}
+
+// Initialiser les calculs
+$totalDistance = 0;
+$totalWeight = 0; // Déchets accumulés
+$stopsCoordinates = []; // Coordonnées des arrêts
+foreach ($route as $stop) {
+    if (isset($stops[$stop])) {
+        $stopsCoordinates[] = $stops[$stop];
+    } else {
+        echo "Erreur : coordonnées non disponibles pour l'arrêt $stop.<br>";
+    }
+}
+
+// Calculer la distance totale en utilisant les distances réelles entre arrêts
+for ($i = 0; $i < count($stopsCoordinates) - 1; $i++) {
+    $lat1 = $stopsCoordinates[$i]['lat'];
+    $lon1 = $stopsCoordinates[$i]['lng'];
+    $lat2 = $stopsCoordinates[$i + 1]['lat'];
+    $lon2 = $stopsCoordinates[$i + 1]['lng'];
+    $totalDistance += calculateDistance($lat1, $lon1, $lat2, $lon2);
+    $totalWeight += 50; // Ajout des déchets (50 kg par arrêt)
+}
+
+// Ajuster l'autonomie en fonction des feux et des pénalités
+$adjustedAutonomy = $autonomy;
+$totalLights = 40; // Exemple de nombre de feux/carrefours
+$adjustedAutonomy -= floor($totalLights / 20) * $autonomyPer20Lights; // Pénalité pour feux
+
+if ($winter) {
+    $adjustedAutonomy *= $winterPenalty; // Réduction en hiver
+}
+
+$adjustedAutonomy -= floor($totalWeight / 50) * $wastePenaltyPer50kg; // Pénalité pour le poids
+
+// Vérifier si un retour à la base est nécessaire
+$extraTrips = 0;
+if ($totalDistance > $adjustedAutonomy) {
+    // Distance aller-retour pour recharger
+    $roundTripDistance = 2 * ($adjustedAutonomy / 2);
+    $extraTrips = ceil($totalDistance / $adjustedAutonomy) - 1;
+    $totalDistance += $extraTrips * $roundTripDistance; // Ajouter la distance supplémentaire pour les trajets de recharge
+}
+
+// Calculer le temps total
+$timePickup = $totalDistance / $pickupSpeed; // Temps en mode ramassage
+$timeRoute = ($extraTrips * $roundTripDistance) / $routeSpeed; // Temps pour les trajets de recharge
+$totalTime = $timePickup + $timeRoute;
+
+// Formater le temps en heures et minutes
+$totalHours = floor($totalTime);
+$totalMinutes = round(($totalTime - $totalHours) * 60);
+
 
 ?>
 <!DOCTYPE html>
@@ -1194,6 +1276,31 @@ echo json_encode(['itineraries' => $allRoutes]);
                         <input type="submit" value="Actualiser les itinéraires" class="btn btn-primary">
                     </div>
                 </form>
+            </div>
+        </div>
+
+                <!-- Temps estimé pour le trajet -->
+                <div class="card mb-4">
+            <div class="card-body">
+                <h2 class="card-title">Temps Estimé pour le Trajet</h2>
+                <p class="text-success">
+                    Temps estimé pour compléter l'itinéraire :
+                    <strong><?= $totalHours ?> heures et <?= $totalMinutes ?> minutes</strong>.
+                </p>
+                <p class="text-info">
+                    Autonomie ajustée :
+                    <strong><?= round($adjustedAutonomy, 2) ?> km</strong>.
+                </p>
+                <p class="text-primary">
+                    Distance totale à parcourir :
+                    <strong><?= round($totalDistance, 2) ?> km</strong>.
+                </p>
+                <?php if ($extraTrips > 0): ?>
+                    <p class="text-warning">
+                        Nombre de retours à la base pour recharger :
+                        <strong><?= $extraTrips ?></strong>.
+                    </p>
+                <?php endif; ?>
             </div>
         </div>
 
@@ -1288,7 +1395,9 @@ echo json_encode(['itineraries' => $allRoutes]);
     <!-- Inclure Bootstrap JS et Leaflet JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
-
+    <div class="text-center mt-4">
+    <button id="nextButton" class="btn btn-primary">Suivant</button>
+</div>
     <script>
         // Initialiser la carte
         var map = L.map('map').setView([48.8566, 2.3522], 12);
@@ -1351,6 +1460,75 @@ echo json_encode(['itineraries' => $allRoutes]);
             agentLayers['agent' + agent] = agentLayerGroup;
             agentIndex++;
         }
+
+        var cyclistMarkers = {}; // Pour suivre les cyclistes
+   // Ajouter les itinéraires et les cyclistes
+   for (var agent in itineraries) {
+        var routes = itineraries[agent];
+        var agentLayerGroup = L.layerGroup(); // Créer un groupe de calques pour cet agent
+
+        // Position initiale du cycliste (premier arrêt du premier itinéraire)
+        var initialPosition = null;
+
+        for (var i = 0; i < routes.length; i++) {
+            var route = routes[i];
+            var latlngs = [];
+            for (var j = 0; j < route.length; j++) {
+                var stopName = route[j];
+                if (stops[stopName]) {
+                    latlngs.push([stops[stopName].lat, stops[stopName].lng]);
+                }
+            }
+            // Enregistrer la position initiale
+            if (i === 0 && latlngs.length > 0) {
+                initialPosition = latlngs[0];
+            }
+
+            // Ajouter une polyligne pour l'itinéraire
+            var polyline = L.polyline(latlngs, {
+                color: colors[agentIndex % colors.length],
+                weight: 3,
+                opacity: 0.7
+            });
+            polyline.bindPopup("<b>Agent " + (parseInt(agent) + 1) + " - Route " + (i + 1) + "</b>");
+            agentLayerGroup.addLayer(polyline);
+        }
+
+        // Ajouter un marqueur pour le cycliste
+        if (initialPosition) {
+            var cyclistIcon = L.icon({
+                iconUrl: 'https://cdn-icons-png.flaticon.com/512/194/194933.png', // Icône pour le cycliste
+                iconSize: [30, 30], // Taille de l'icône
+                iconAnchor: [15, 15], // Point d'ancrage
+                popupAnchor: [0, -15] // Point où afficher la popup
+            });
+
+            var cyclistMarker = L.marker(initialPosition, { icon: cyclistIcon });
+            cyclistMarker.bindPopup("<b>Cycliste de l'Agent " + (parseInt(agent) + 1) + "</b>");
+            agentLayerGroup.addLayer(cyclistMarker);
+
+            // Enregistrer le marqueur du cycliste
+            cyclistMarkers['agent' + agent] = cyclistMarker;
+        }
+
+        // Ajouter les arrêts à la carte
+        for (var stop in stops) {
+            var marker = L.circleMarker([stops[stop].lat, stops[stop].lng], {
+                radius: 5,
+                fillColor: '#0000FF',
+                color: '#0000FF',
+                weight: 1,
+                opacity: 1,
+                fillOpacity: 0.8
+            });
+            marker.bindPopup("<b>" + stop + "</b>");
+            agentLayerGroup.addLayer(marker);
+        }
+
+        agentLayers['agent' + agent] = agentLayerGroup;
+        agentIndex++;
+    }
+
 
         // Fonction pour afficher uniquement l'itinéraire de l'agent sélectionné
         function showAgent(agentId) {
@@ -1471,6 +1649,8 @@ echo json_encode(['itineraries' => $allRoutes]);
             // Afficher tous les itinéraires
             showAgent('all');
         }
+
+        
     </script>
 
 </body>

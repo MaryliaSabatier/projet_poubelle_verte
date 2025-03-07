@@ -1113,6 +1113,90 @@ $stopsToVisit = array_filter($stopsToVisit, function ($stop) use ($blockedStops)
     return !in_array(trim($stop), $blockedStops);
 });
 
+
+function calculateDistance($lat1, $lon1, $lat2, $lon2)
+{
+    $earthRadius = 6371; // Rayon moyen de la Terre en km
+
+    // Convertir les degrés en radians
+    $dLat = deg2rad($lat2 - $lat1);
+    $dLon = deg2rad($lon2 - $lon1);
+
+    // Calcul de la distance haversine
+    $a = sin($dLat / 2) * sin($dLat / 2) +
+        cos(deg2rad($lat1)) * cos(deg2rad($lat2)) *
+        sin($dLon / 2) * sin($dLon / 2);
+    $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
+
+    return $earthRadius * $c; // Distance en km
+}
+
+// Configuration
+$autonomy = 50; // km
+$autonomyPer20Lights = 1; // km
+$winterPenalty = 0.9; // 10% reduction in winter
+$wastePenaltyPer50kg = 2; // km
+$maxWeight = 200; // kg
+$pickupSpeed = 5; // km/h
+$routeSpeed = 20; // km/h
+$winter = true; // Set true for winter calculations
+
+// Vérifier qu'un itinéraire existe pour éviter les erreurs
+if (empty($route)) {
+    die("Erreur : Aucun itinéraire trouvé pour effectuer le calcul.");
+}
+
+// Initialiser les calculs
+$totalDistance = 0;
+$totalWeight = 0; // Déchets accumulés
+$stopsCoordinates = []; // Coordonnées des arrêts
+foreach ($route as $stop) {
+    if (isset($stops[$stop])) {
+        $stopsCoordinates[] = $stops[$stop];
+    } else {
+        echo "Erreur : coordonnées non disponibles pour l'arrêt $stop.<br>";
+    }
+}
+
+// Calculer la distance totale en utilisant les distances réelles entre arrêts
+for ($i = 0; $i < count($stopsCoordinates) - 1; $i++) {
+    $lat1 = $stopsCoordinates[$i]['lat'];
+    $lon1 = $stopsCoordinates[$i]['lng'];
+    $lat2 = $stopsCoordinates[$i + 1]['lat'];
+    $lon2 = $stopsCoordinates[$i + 1]['lng'];
+    $totalDistance += calculateDistance($lat1, $lon1, $lat2, $lon2);
+    $totalWeight += 50; // Ajout des déchets (50 kg par arrêt)
+}
+
+// Ajuster l'autonomie en fonction des feux et des pénalités
+$adjustedAutonomy = $autonomy;
+$totalLights = 40; // Exemple de nombre de feux/carrefours
+$adjustedAutonomy -= floor($totalLights / 20) * $autonomyPer20Lights; // Pénalité pour feux
+
+if ($winter) {
+    $adjustedAutonomy *= $winterPenalty; // Réduction en hiver
+}
+
+$adjustedAutonomy -= floor($totalWeight / 50) * $wastePenaltyPer50kg; // Pénalité pour le poids
+
+// Vérifier si un retour à la base est nécessaire
+$extraTrips = 0;
+if ($totalDistance > $adjustedAutonomy) {
+    // Distance aller-retour pour recharger
+    $roundTripDistance = 2 * ($adjustedAutonomy / 2);
+    $extraTrips = ceil($totalDistance / $adjustedAutonomy) - 1;
+    $totalDistance += $extraTrips * $roundTripDistance; // Ajouter la distance supplémentaire pour les trajets de recharge
+}
+
+// Calculer le temps total
+$timePickup = $totalDistance / $pickupSpeed; // Temps en mode ramassage
+$timeRoute = ($extraTrips * $roundTripDistance) / $routeSpeed; // Temps pour les trajets de recharge
+$totalTime = $timePickup + $timeRoute;
+
+// Formater le temps en heures et minutes
+$totalHours = floor($totalTime);
+$totalMinutes = round(($totalTime - $totalHours) * 60);
+
 ?>
 <!DOCTYPE html>
 <html>
@@ -1125,6 +1209,7 @@ $stopsToVisit = array_filter($stopsToVisit, function ($stop) use ($blockedStops)
     <!-- Inclure la feuille de style de Bootstrap et Leaflet -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
 
     <style>
         #map {
@@ -1153,8 +1238,6 @@ $stopsToVisit = array_filter($stopsToVisit, function ($stop) use ($blockedStops)
         <a href="../logout.php" class="btn btn-danger logout-btn">Déconnexion</a>
         <h1 class="text-center text-primary mb-4">Votre tournée</h1>
 
-
-
         <!-- Liste des agents -->
         <div class="card mb-4">
             <div class="card-body">
@@ -1170,6 +1253,33 @@ $stopsToVisit = array_filter($stopsToVisit, function ($stop) use ($blockedStops)
                 </ul>
             </div>
         </div>
+
+        <!-- Temps estimé pour le trajet -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <h2 class="card-title">Temps Estimé pour le Trajet</h2>
+                <p class="text-success">
+                    Temps estimé pour compléter l'itinéraire :
+                    <strong><?= $totalHours ?> heures et <?= $totalMinutes ?> minutes</strong>.
+                </p>
+                <p class="text-info">
+                    Autonomie ajustée :
+                    <strong><?= round($adjustedAutonomy, 2) ?> km</strong>.
+                </p>
+                <p class="text-primary">
+                    Distance totale à parcourir :
+                    <strong><?= round($totalDistance, 2) ?> km</strong>.
+                </p>
+                <?php if ($extraTrips > 0): ?>
+                    <p class="text-warning">
+                        Nombre de retours à la base pour recharger :
+                        <strong><?= $extraTrips ?></strong>.
+                    </p>
+                <?php endif; ?>
+            </div>
+        </div>
+
+
         <div class="container mt-5">
             <h1 class="text-center">Incidents Signalés</h1>
 
@@ -1194,9 +1304,16 @@ $stopsToVisit = array_filter($stopsToVisit, function ($stop) use ($blockedStops)
                     <?php endif; ?>
                 </div>
             </div>
+            <div class="container mt-5">
+    <h1 class="text-center text-primary mb-4">Carte du trajet du cycliste</h1>
+    <div id="map"></div>
+    <div class="text-center mt-4">
+        <button id="nextStopBtn" class="btn btn-success">Suivant</button>
+    </div>
+</div>
         </div>
 
-        <div>
+        <div class="container mt-5">
             <?php
             $agentIndex = 0; // Index de l'agent à afficher (0 pour l'agent 1)
             if (isset($itineraries[$agentIndex])) {
@@ -1220,8 +1337,87 @@ $stopsToVisit = array_filter($stopsToVisit, function ($stop) use ($blockedStops)
             } else {
                 echo "<p>Aucun itinéraire trouvé pour l'agent " . ($agentIndex + 1) . ".</p>";
             }
+
+
             ?>
         </div>
+        <script>
+    // Initialiser la carte
+    var map = L.map('map').setView([48.8566, 2.3522], 12); // Centrer sur Paris
+
+    // Ajouter une couche de tuiles (carte de base)
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+
+    // Tableau des arrêts (exemple dynamique généré depuis PHP)
+    var stops = [
+        <?php
+        $agentIndex = 0; // Afficher le trajet de l'agent 0
+        if (isset($itineraries[$agentIndex])) {
+            $routes = $itineraries[$agentIndex];
+            foreach ($routes as $route) {
+                foreach ($route as $stop) {
+                    if (isset($stops[$stop])) {
+                        echo "{lat: " . $stops[$stop]['lat'] . ", lng: " . $stops[$stop]['lng'] . ", name: '" . addslashes($stop) . "'},";
+                    }
+                }
+            }
+        }
+        ?>
+    ];
+
+    // Ajouter les arrêts sur la carte et tracer un itinéraire
+    var latlngs = [];
+    stops.forEach(function(stop) {
+        L.marker([stop.lat, stop.lng]).addTo(map).bindPopup(stop.name);
+        latlngs.push([stop.lat, stop.lng]);
+    });
+
+    // Tracer une ligne entre les arrêts
+    var polyline = L.polyline(latlngs, {
+        color: 'blue'
+    }).addTo(map);
+
+    // Ajuster la vue pour afficher tous les arrêts
+    map.fitBounds(polyline.getBounds());
+
+    // Initialiser le marqueur du cycliste
+    var cyclistMarker = L.marker([stops[0].lat, stops[0].lng], {
+        icon: L.icon({
+            iconUrl: 'https://cdn-icons-png.flaticon.com/512/194/194933.png', // URL de l'icône pour représenter le cycliste
+            iconSize: [30, 30],
+        })
+    }).addTo(map).bindPopup("Cycliste : " + stops[0].name);
+
+    // Index pour suivre la position actuelle du cycliste
+    var currentStopIndex = 0;
+
+    // Bouton pour avancer d'arrêt
+    document.getElementById('nextStopBtn').addEventListener('click', function() {
+        if (currentStopIndex < stops.length - 1) {
+            currentStopIndex++; // Avancer d'un arrêt
+
+            // Mettre à jour la position du cycliste
+            var nextStop = stops[currentStopIndex];
+            cyclistMarker.setLatLng([nextStop.lat, nextStop.lng])
+                .bindPopup("Cycliste : " + nextStop.name)
+                .openPopup();
+
+            // Centrer la carte sur la nouvelle position
+            map.panTo([nextStop.lat, nextStop.lng]);
+
+            // Mettre à jour l'affichage du bouton si nécessaire
+            if (currentStopIndex === stops.length - 1) {
+                document.getElementById('nextStopBtn').innerText = "Arrivée";
+                document.getElementById('nextStopBtn').classList.add("btn-danger");
+            }
+        } else {
+            alert("Le cycliste a atteint la destination finale !");
+        }
+    });
+</script>
+
 </body>
 
 </html>

@@ -244,6 +244,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['etat']) && isset($_POS
     }
 }
 
+$modeMessage = ''; // Initialisation du message
+
+// Vérification du mode sélectionné
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['mode'])) {
+    $mode = $_POST['mode'];
+    if ($mode === 'ete') {
+        $modeMessage = "Les vélos ont une autonomie de 50 km.";
+    } elseif ($mode === 'hiver') {
+        $modeMessage = "Les vélos ont perdu une autonomie de -10%.";
+    }
+}
 ?>
 
 <!DOCTYPE html>
@@ -296,6 +307,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['etat']) && isset($_POS
                         <button type="submit" name="mode" value="hiver" class="btn btn-secondary">Mode Hiver</button>
                     </div>
                 </form>
+
+                <!-- Affichage du message basé sur le mode -->
+                <?php if (!empty($modeMessage)): ?>
+                    <div class="alert alert-info">
+                        <?php echo $modeMessage; ?>
+                    </div>
+                <?php endif; ?>
 
                 <!-- Affichage du mode sélectionné -->
                 <?php
