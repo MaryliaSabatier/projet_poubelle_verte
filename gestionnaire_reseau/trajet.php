@@ -945,14 +945,10 @@ $streets = array(
 );
 
 
-
 // Connexion à la base de données
 $dsn = "mysql:host=localhost;dbname=poubelle_verte;charset=utf8";
 $username = "root";
-$password = "";
-
-
-
+$password = "root";
 try {
     $pdo = new PDO($dsn, $username, $password, [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
@@ -962,6 +958,99 @@ try {
     die("Erreur de connexion : " . $e->getMessage());
 }
 
+// Récupérer le mode de la tournée depuis la base de données
+$tourneeId = isset($_GET['tournee_id']) ? $_GET['tournee_id'] : null;
+$mode = 'ete'; // Mode par défaut
+
+if ($tourneeId) {
+    $stmt = $pdo->prepare("SELECT mode FROM tournees WHERE id = ?");
+    $stmt->execute([$tourneeId]);
+    $result = $stmt->fetch();
+    if ($result) {
+        $mode = $result['mode'];
+    }
+}
+
+// Configuration initiale
+$baseAutonomy = 50; // Autonomie de base en km
+$adjustedAutonomy = $mode === 'hiver' ? $baseAutonomy * 0.9 : $baseAutonomy;
+$pickupSpeed = 5; // km/h en mode ramassage
+$routeSpeed = 20; // km/h en mode route
+$maxWeight = 200; // kg maximum de déchets
+$weightPerStop = 50; // kg par arrêt
+$wastePenaltyPer50kg = 2; // km de pénalité tous les 50kg
+$intersectionPenaltyPer20 = 1; // km de pénalité tous les 20 feux
+
+function calculateRouteDetails($route, $stops, $mode)
+{
+    global $baseAutonomy, $wastePenaltyPer50kg, $intersectionPenaltyPer20;
+
+    $currentAutonomy = $mode === 'hiver' ? $baseAutonomy * 0.9 : $baseAutonomy;
+    $currentWeight = 0;
+    $totalDistance = 0;
+    $rechargePoints = [];
+    $intersectionCount = 0;
+
+    for ($i = 0; $i < count($route) - 1; $i++) {
+        $start = $stops[$route[$i]];
+        $end = $stops[$route[$i + 1]];
+
+        // Calculer la distance entre deux arrêts
+        $segmentDistance = calculateDistance($start['lat'], $start['lng'], $end['lat'], $end['lng']);
+
+        // Ajouter le poids des déchets (50kg par arrêt)
+        $currentWeight += 50;
+
+        // Compter les intersections (estimation : 1 intersection tous les 500m)
+        $intersectionCount += ceil($segmentDistance * 2);
+
+        // Appliquer les pénalités
+        $autonomyPenalty = floor($intersectionCount / 20) * $intersectionPenaltyPer20 +
+            floor($currentWeight / 50) * $wastePenaltyPer50kg;
+        $effectiveAutonomy = $currentAutonomy - $autonomyPenalty;
+
+        // Vérifier si recharge nécessaire
+        if ($totalDistance + $segmentDistance > $effectiveAutonomy || $currentWeight >= 200) {
+            $rechargePoints[] = $i;
+            $totalDistance = $segmentDistance;
+            $currentWeight = 50; // Nouveau chargement après recharge
+            $intersectionCount = ceil($segmentDistance * 2);
+        } else {
+            $totalDistance += $segmentDistance;
+        }
+    }
+
+    return [
+        'distance' => $totalDistance,
+        'rechargePoints' => $rechargePoints,
+        'weight' => $currentWeight,
+        'effectiveAutonomy' => $effectiveAutonomy,
+        'mode' => $mode,
+        'baseAutonomy' => $baseAutonomy
+    ];
+}
+
+// Créer la structure pour stocker les informations des itinéraires
+$routeInfo = [];
+foreach ($itineraries as $agentId => $routes) {
+    foreach ($routes as $routeId => $route) {
+        $routeDetails = calculateRouteDetails($route, $stops, $mode);
+
+        // Calcul des temps
+        $pickupTime = $routeDetails['distance'] / $pickupSpeed;
+        $routeTime = count($routeDetails['rechargePoints']) * ($routeDetails['distance'] / $routeSpeed);
+        $totalTime = $pickupTime + $routeTime;
+
+        $routeInfo[$agentId][$routeId] = [
+            'distance' => $routeDetails['distance'],
+            'recharges' => count($routeDetails['rechargePoints']),
+            'time' => $totalTime,
+            'autonomy' => $routeDetails['effectiveAutonomy'],
+            'mode' => $mode,
+            'weight' => $routeDetails['weight']
+        ];
+    }
+}
 // Récupérer les vélos disponibles
 $sqlVelo = "SELECT id, numero FROM velos WHERE etat = 'en_cours_utilisation'";
 $velosDisponibles = $pdo->query($sqlVelo)->fetchAll();
@@ -1205,6 +1294,54 @@ $timePickup = $totalDistance / $pickupSpeed; // Temps en mode ramassage
 $timeRoute = ($extraTrips * $roundTripDistance) / $routeSpeed; // Temps pour les trajets de recharge
 $totalTime = $timePickup + $timeRoute;
 
+// Fonction pour calculer le temps pour un agent
+function calculateAgentTime($routes, $stops, $pickupSpeed, $adjustedAutonomy)
+{
+    $totalDistance = 0;
+    foreach ($routes as $route) {
+        $routeDistance = 0;
+        $stopsCoordinates = [];
+
+        // Convertir les arrêts en coordonnées
+        foreach ($route as $stop) {
+            if (isset($stops[$stop])) {
+                $stopsCoordinates[] = $stops[$stop];
+            }
+        }
+
+        // Calculer la distance pour cet itinéraire
+        for ($i = 0; $i < count($stopsCoordinates) - 1; $i++) {
+            $lat1 = $stopsCoordinates[$i]['lat'];
+            $lon1 = $stopsCoordinates[$i]['lng'];
+            $lat2 = $stopsCoordinates[$i + 1]['lat'];
+            $lon2 = $stopsCoordinates[$i + 1]['lng'];
+            $routeDistance += calculateDistance($lat1, $lon1, $lat2, $lon2);
+        }
+
+        // Ajuster si le trajet dépasse l'autonomie
+        $extraTrips = 0;
+        if ($routeDistance > $adjustedAutonomy) {
+            $roundTripDistance = 2 * ($adjustedAutonomy / 2);
+            $extraTrips = ceil($routeDistance / $adjustedAutonomy) - 1;
+            $routeDistance += $extraTrips * $roundTripDistance;
+        }
+
+        $totalDistance += $routeDistance;
+    }
+
+    // Calculer le temps total pour l'agent
+    return $totalDistance / $pickupSpeed;
+}
+
+// Calculer le temps pour chaque agent
+foreach ($itineraries as $agentRoutes) {
+    $totalTimePerCyclist[] = calculateAgentTime($agentRoutes, $stops, $pickupSpeed, $adjustedAutonomy);
+}
+
+
+// Le temps total est le temps maximum parmi tous les cyclistes
+$totalTime = max($totalTimePerCyclist);
+
 // Formater le temps en heures et minutes
 $totalHours = floor($totalTime);
 $totalMinutes = round(($totalTime - $totalHours) * 60);
@@ -1279,8 +1416,8 @@ $totalMinutes = round(($totalTime - $totalHours) * 60);
             </div>
         </div>
 
-                <!-- Temps estimé pour le trajet -->
-                <div class="card mb-4">
+        <!-- Temps estimé pour le trajet -->
+        <div class="card mb-4">
             <div class="card-body">
                 <h2 class="card-title">Temps Estimé pour le Trajet</h2>
                 <p class="text-success">
@@ -1295,6 +1432,10 @@ $totalMinutes = round(($totalTime - $totalHours) * 60);
                     Distance totale à parcourir :
                     <strong><?= round($totalDistance, 2) ?> km</strong>.
                 </p>
+                <p>Mode de la tournée : <strong><?php echo ucfirst($row['mode']); ?></strong></p>
+                <p>Autonomie des vélos : <strong><?php echo $row['autonomie']; ?> km</strong></p>
+                <p>Durée estimée : <strong><?php echo round($row['duree_estimee'], 2); ?> heures</strong></p>
+
                 <?php if ($extraTrips > 0): ?>
                     <p class="text-warning">
                         Nombre de retours à la base pour recharger :
@@ -1303,6 +1444,7 @@ $totalMinutes = round(($totalTime - $totalHours) * 60);
                 <?php endif; ?>
             </div>
         </div>
+
 
         <!-- Liste des incidents -->
         <div class="card mb-4">
@@ -1396,8 +1538,8 @@ $totalMinutes = round(($totalTime - $totalHours) * 60);
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     <div class="text-center mt-4">
-    <button id="nextButton" class="btn btn-primary">Suivant</button>
-</div>
+        <button id="nextButton" class="btn btn-primary">Suivant</button>
+    </div>
     <script>
         // Initialiser la carte
         var map = L.map('map').setView([48.8566, 2.3522], 12);
@@ -1462,72 +1604,170 @@ $totalMinutes = round(($totalTime - $totalHours) * 60);
         }
 
         var cyclistMarkers = {}; // Pour suivre les cyclistes
-   // Ajouter les itinéraires et les cyclistes
-   for (var agent in itineraries) {
-        var routes = itineraries[agent];
-        var agentLayerGroup = L.layerGroup(); // Créer un groupe de calques pour cet agent
+        var currentStopIndices = {};
 
-        // Position initiale du cycliste (premier arrêt du premier itinéraire)
-        var initialPosition = null;
+        var cyclistMarkers = {};
+        var currentStopIndices = {};
+        var routeProgression = {}; // Pour suivre la progression dans les routes
 
-        for (var i = 0; i < routes.length; i++) {
-            var route = routes[i];
-            var latlngs = [];
-            for (var j = 0; j < route.length; j++) {
-                var stopName = route[j];
-                if (stops[stopName]) {
-                    latlngs.push([stops[stopName].lat, stops[stopName].lng]);
+        // Initialiser les marqueurs des cyclistes à leurs positions de départ
+        for (var agent in itineraries) {
+            if (itineraries[agent].length > 0 && itineraries[agent][0].length > 0) {
+                var firstStop = itineraries[agent][0][0];
+                if (stops[firstStop]) {
+                    var cyclistIcon = L.icon({
+                        iconUrl: 'https://cdn-icons-png.flaticon.com/512/194/194933.png',
+                        iconSize: [30, 30],
+                        iconAnchor: [15, 15],
+                        popupAnchor: [0, -15]
+                    });
+
+                    cyclistMarkers[agent] = L.marker([stops[firstStop].lat, stops[firstStop].lng], {
+                        icon: cyclistIcon
+                    }).addTo(map);
+                    cyclistMarkers[agent].bindPopup("Cycliste " + (parseInt(agent) + 1));
+                    currentStopIndices[agent] = 0;
                 }
             }
-            // Enregistrer la position initiale
-            if (i === 0 && latlngs.length > 0) {
-                initialPosition = latlngs[0];
+        }
+        // Initialiser la progression pour chaque agent
+        for (var agent in itineraries) {
+            routeProgression[agent] = {
+                routeIndex: 0,
+                stopIndex: 0
+            };
+        }
+        // Gérer le clic sur le bouton suivant
+        document.getElementById('nextButton').addEventListener('click', function() {
+            for (var agent in itineraries) {
+                if (itineraries[agent].length > 0) {
+                    var currentRouteIndex = routeProgression[agent].routeIndex;
+                    var currentStopIndex = routeProgression[agent].stopIndex;
+                    var routes = itineraries[agent];
+
+                    if (currentRouteIndex < routes.length) {
+                        var currentRoute = routes[currentRouteIndex];
+
+                        if (currentStopIndex < currentRoute.length - 1) {
+                            // Avancer au prochain arrêt dans la route actuelle
+                            routeProgression[agent].stopIndex++;
+                            var nextStop = currentRoute[routeProgression[agent].stopIndex];
+
+                            if (stops[nextStop]) {
+                                var marker = cyclistMarkers[agent];
+                                var currentPos = marker.getLatLng();
+                                var nextPos = L.latLng(stops[nextStop].lat, stops[nextStop].lng);
+
+                                animateMarker(marker, currentPos, nextPos, 1000);
+                            }
+                        } else if (currentRouteIndex < routes.length - 1) {
+                            // Passer à la route suivante
+                            routeProgression[agent].routeIndex++;
+                            routeProgression[agent].stopIndex = 0;
+
+                            // Retourner au point de départ pour la nouvelle route
+                            var startStop = routes[routeProgression[agent].routeIndex][0];
+                            if (stops[startStop]) {
+                                var marker = cyclistMarkers[agent];
+                                var currentPos = marker.getLatLng();
+                                var nextPos = L.latLng(stops[startStop].lat, stops[startStop].lng);
+
+                                animateMarker(marker, currentPos, nextPos, 1000);
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // Améliorer la fonction d'animation pour ajouter un callback
+        function animateMarker(marker, start, end, duration) {
+            var frames = Math.min(duration / 10, 100);
+            var counter = 0;
+
+            function animate() {
+                counter++;
+                var progress = counter / frames;
+                var lat = start.lat + (end.lat - start.lat) * progress;
+                var lng = start.lng + (end.lng - start.lng) * progress;
+
+                marker.setLatLng([lat, lng]);
+
+                if (counter < frames) {
+                    requestAnimationFrame(animate);
+                }
             }
 
-            // Ajouter une polyligne pour l'itinéraire
-            var polyline = L.polyline(latlngs, {
-                color: colors[agentIndex % colors.length],
-                weight: 3,
-                opacity: 0.7
-            });
-            polyline.bindPopup("<b>Agent " + (parseInt(agent) + 1) + " - Route " + (i + 1) + "</b>");
-            agentLayerGroup.addLayer(polyline);
+            animate();
         }
+        // Ajouter les itinéraires et les cyclistes
+        for (var agent in itineraries) {
+            var routes = itineraries[agent];
+            var agentLayerGroup = L.layerGroup(); // Créer un groupe de calques pour cet agent
 
-        // Ajouter un marqueur pour le cycliste
-        if (initialPosition) {
-            var cyclistIcon = L.icon({
-                iconUrl: 'https://cdn-icons-png.flaticon.com/512/194/194933.png', // Icône pour le cycliste
-                iconSize: [30, 30], // Taille de l'icône
-                iconAnchor: [15, 15], // Point d'ancrage
-                popupAnchor: [0, -15] // Point où afficher la popup
-            });
+            // Position initiale du cycliste (premier arrêt du premier itinéraire)
+            var initialPosition = null;
 
-            var cyclistMarker = L.marker(initialPosition, { icon: cyclistIcon });
-            cyclistMarker.bindPopup("<b>Cycliste de l'Agent " + (parseInt(agent) + 1) + "</b>");
-            agentLayerGroup.addLayer(cyclistMarker);
+            for (var i = 0; i < routes.length; i++) {
+                var route = routes[i];
+                var latlngs = [];
+                for (var j = 0; j < route.length; j++) {
+                    var stopName = route[j];
+                    if (stops[stopName]) {
+                        latlngs.push([stops[stopName].lat, stops[stopName].lng]);
+                    }
+                }
+                // Enregistrer la position initiale
+                if (i === 0 && latlngs.length > 0) {
+                    initialPosition = latlngs[0];
+                }
 
-            // Enregistrer le marqueur du cycliste
-            cyclistMarkers['agent' + agent] = cyclistMarker;
+                // Ajouter une polyligne pour l'itinéraire
+                var polyline = L.polyline(latlngs, {
+                    color: colors[agentIndex % colors.length],
+                    weight: 3,
+                    opacity: 0.7
+                });
+                polyline.bindPopup("<b>Agent " + (parseInt(agent) + 1) + " - Route " + (i + 1) + "</b>");
+                agentLayerGroup.addLayer(polyline);
+            }
+
+            // Ajouter un marqueur pour le cycliste
+            if (initialPosition) {
+                var cyclistIcon = L.icon({
+                    iconUrl: 'https://cdn-icons-png.flaticon.com/512/194/194933.png', // Icône pour le cycliste
+                    iconSize: [30, 30], // Taille de l'icône
+                    iconAnchor: [15, 15], // Point d'ancrage
+                    popupAnchor: [0, -15] // Point où afficher la popup
+                });
+
+                var cyclistMarker = L.marker(initialPosition, {
+                    icon: cyclistIcon
+                });
+                cyclistMarker.bindPopup("<b>Cycliste de l'Agent " + (parseInt(agent) + 1) + "</b>");
+                agentLayerGroup.addLayer(cyclistMarker);
+
+                // Enregistrer le marqueur du cycliste
+                cyclistMarkers['agent' + agent] = cyclistMarker;
+            }
+
+            // Ajouter les arrêts à la carte
+            for (var stop in stops) {
+                var marker = L.circleMarker([stops[stop].lat, stops[stop].lng], {
+                    radius: 5,
+                    fillColor: '#0000FF',
+                    color: '#0000FF',
+                    weight: 1,
+                    opacity: 1,
+                    fillOpacity: 0.8
+                });
+                marker.bindPopup("<b>" + stop + "</b>");
+                agentLayerGroup.addLayer(marker);
+            }
+
+            agentLayers['agent' + agent] = agentLayerGroup;
+            agentIndex++;
         }
-
-        // Ajouter les arrêts à la carte
-        for (var stop in stops) {
-            var marker = L.circleMarker([stops[stop].lat, stops[stop].lng], {
-                radius: 5,
-                fillColor: '#0000FF',
-                color: '#0000FF',
-                weight: 1,
-                opacity: 1,
-                fillOpacity: 0.8
-            });
-            marker.bindPopup("<b>" + stop + "</b>");
-            agentLayerGroup.addLayer(marker);
-        }
-
-        agentLayers['agent' + agent] = agentLayerGroup;
-        agentIndex++;
-    }
 
 
         // Fonction pour afficher uniquement l'itinéraire de l'agent sélectionné
@@ -1649,8 +1889,6 @@ $totalMinutes = round(($totalTime - $totalHours) * 60);
             // Afficher tous les itinéraires
             showAgent('all');
         }
-
-        
     </script>
 
 </body>
