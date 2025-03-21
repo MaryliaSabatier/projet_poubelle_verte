@@ -1,4 +1,6 @@
 <?php
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
 $stops = array(
@@ -942,7 +944,9 @@ $streets = array(
         "Saint-Lazare",
         "Gare du Nord"
     )
+
 );
+
 
 
 // Connexion à la base de données
@@ -958,9 +962,8 @@ try {
     die("Erreur de connexion : " . $e->getMessage());
 }
 
-// Récupérer le mode de la tournée depuis la base de données
 $tourneeId = isset($_GET['tournee_id']) ? $_GET['tournee_id'] : null;
-$mode = 'ete'; // Mode par défaut
+$mode = 'ete'; // Valeur par défaut
 
 if ($tourneeId) {
     $stmt = $pdo->prepare("SELECT mode FROM tournees WHERE id = ?");
@@ -981,8 +984,13 @@ $weightPerStop = 50; // kg par arrêt
 $wastePenaltyPer50kg = 2; // km de pénalité tous les 50kg
 $intersectionPenaltyPer20 = 1; // km de pénalité tous les 20 feux
 
+if (!isset($itineraries) || !is_array($itineraries)) {
+    $itineraries = []; // Initialise un tableau vide si non défini
+}
+
 function calculateRouteDetails($route, $stops, $mode)
 {
+
     global $baseAutonomy, $wastePenaltyPer50kg, $intersectionPenaltyPer20;
 
     $currentAutonomy = $mode === 'hiver' ? $baseAutonomy * 0.9 : $baseAutonomy;
@@ -1032,7 +1040,13 @@ function calculateRouteDetails($route, $stops, $mode)
 
 // Créer la structure pour stocker les informations des itinéraires
 $routeInfo = [];
+if (!isset($itineraries) || !is_array($itineraries)) {
+    $itineraries = []; // Définit une valeur par défaut pour éviter l'erreur
+}
+
+
 foreach ($itineraries as $agentId => $routes) {
+
     foreach ($routes as $routeId => $route) {
         $routeDetails = calculateRouteDetails($route, $stops, $mode);
 
@@ -1051,6 +1065,9 @@ foreach ($itineraries as $agentId => $routes) {
         ];
     }
 }
+
+
+
 // Récupérer les vélos disponibles
 $sqlVelo = "SELECT id, numero FROM velos WHERE etat = 'en_cours_utilisation'";
 $velosDisponibles = $pdo->query($sqlVelo)->fetchAll();
@@ -1063,7 +1080,8 @@ $utilisateursDisponibles = $pdo->query($sqlUtilisateur)->fetchAll();
 $numAgents = min(count($velosDisponibles), count($utilisateursDisponibles));
 
 // Autres paramètres
-$groupSize = 4; // Nombre d'arrêts avant de revenir à "Porte d'Ivry"
+// ✅ Déterminer la capacité d'arrêt selon le mode
+$groupSize = ($mode === 'hiver') ? 3 : 4; // 3 arrêts en hiver, 4 en été
 $startStop = "Porte d'Ivry"; // Point de départ
 $stopsToVisit = array_keys($stops);
 $visitedStops = [];
@@ -1105,8 +1123,11 @@ while (!empty($stopsToVisit)) {
     $allRoutes[] = $route;
 }
 
+
 // Distribuer les itinéraires entre les agents
 $itineraries = [];
+
+
 for ($i = 0; $i < $numAgents; $i++) {
     $itineraries[$i] = [];
 }
@@ -1121,6 +1142,7 @@ foreach ($allRoutes as $route) {
     $itineraries[$agentIndex][] = $route;
     $routeIndex++;
 }
+
 
 // Récupérer les incidents
 try {
@@ -1152,6 +1174,7 @@ LEFT JOIN rues r ON i.rue_id = r.id
 WHERE i.resolved_at IS NULL -- Filtrer uniquement les incidents non résolus
 ORDER BY i.date DESC, i.heure DESC
 ";
+
 
 // Utilisation de PDO
 try {
@@ -1212,6 +1235,43 @@ while (!empty($stopsToVisit)) {
     $allRoutes[] = $route;
 }
 
+// ✅ 1. Initialisation de la distance totale à parcourir
+$totalDistanceParcourir = 0;
+
+foreach ($itineraries as $agentId => $routes) {
+    foreach ($routes as $routeId => $route) {
+        $routeDetails = calculateRouteDetails($route, $stops, $mode);
+
+        // 🔵 Ajouter la distance totale de chaque itinéraire
+        $totalDistanceParcourir += $routeDetails['distance'];
+    }
+}
+
+// ✅ 2. Ajuster l'autonomie en fonction du mode (été ou hiver)
+$autonomieBase = ($mode === 'hiver') ? 50 * 0.9 : 50; // Réduction de 10% en hiver
+
+// ✅ 3. Appliquer les pénalités (feux rouges + poids des déchets)
+$autonomieApresPenalites = $autonomieBase - (floor($totalLights / 20) * $intersectionPenaltyPer20) - (floor($totalWeight / 50) * $wastePenaltyPer50kg);
+
+// ✅ 4. Vérifier qu'on ne descend pas sous une autonomie minimale (10 km pour éviter des erreurs)
+$autonomieApresPenalites = max($autonomieApresPenalites, 10);
+
+// ✅ 5. Ajuster la vitesse de collecte en fonction du mode
+$pickupSpeedAdjusted = ($mode === 'hiver') ? $pickupSpeed * 0.9 : $pickupSpeed;
+
+// ✅ 6. Calcul du temps total en tenant compte du nombre de cyclistes
+if ($numAgents > 0 && $totalDistanceParcourir > 0) {
+    $totalTime = $totalDistanceParcourir / ($pickupSpeedAdjusted * $numAgents);
+} else {
+    $totalTime = 0; // Évite une division par zéro si pas de données
+}
+
+// ✅ 7. Convertir en heures et minutes
+$totalHours = floor($totalTime);
+$totalMinutes = round(($totalTime - $totalHours) * 60);
+
+
+
 echo json_encode(['itineraries' => $allRoutes]);
 
 function calculateDistance($lat1, $lon1, $lat2, $lon2)
@@ -1228,8 +1288,13 @@ function calculateDistance($lat1, $lon1, $lat2, $lon2)
         sin($dLon / 2) * sin($dLon / 2);
     $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
 
-    return $earthRadius * $c; // Distance en km
+    $distance = $earthRadius * $c; // Distance en km
+
+    //echo "<h4>🛰️ Debug - Distance entre ($lat1, $lon1) et ($lat2, $lon2) = " . $distance . " km</h4>";
+
+    return $distance;
 }
+
 
 
 // Configuration
@@ -1242,10 +1307,16 @@ $pickupSpeed = 5; // km/h
 $routeSpeed = 20; // km/h
 $winter = true; // Set true for winter calculations
 
-// Vérifier qu'un itinéraire existe pour éviter les erreurs
-if (empty($route)) {
-    die("Erreur : Aucun itinéraire trouvé pour effectuer le calcul.");
+if (!empty($itineraries)) {
+    foreach ($itineraries as $agentId => $routes) {
+        foreach ($routes as $routeId => $route) {
+
+            $routeDetails = calculateRouteDetails($route, $stops, $mode);
+        }
+    }
+} else {
 }
+
 
 // Initialiser les calculs
 $totalDistance = 0;
@@ -1282,9 +1353,9 @@ $adjustedAutonomy -= floor($totalWeight / 50) * $wastePenaltyPer50kg; // Pénali
 
 // Vérifier si un retour à la base est nécessaire
 $extraTrips = 0;
+$roundTripDistance = isset($distanceBaseRecharge) ? $distanceBaseRecharge : 10;
+
 if ($totalDistance > $adjustedAutonomy) {
-    // Distance aller-retour pour recharger
-    $roundTripDistance = 2 * ($adjustedAutonomy / 2);
     $extraTrips = ceil($totalDistance / $adjustedAutonomy) - 1;
     $totalDistance += $extraTrips * $roundTripDistance; // Ajouter la distance supplémentaire pour les trajets de recharge
 }
@@ -1339,12 +1410,15 @@ foreach ($itineraries as $agentRoutes) {
 }
 
 
-// Le temps total est le temps maximum parmi tous les cyclistes
-$totalTime = max($totalTimePerCyclist);
 
-// Formater le temps en heures et minutes
-$totalHours = floor($totalTime);
-$totalMinutes = round(($totalTime - $totalHours) * 60);
+
+// Définir l'autonomie de base en fonction du mode sélectionné
+$autonomieBase = ($mode === 'hiver') ? 50 * 0.9 : 50; // Hiver = -10%
+
+// Calculer l'autonomie après application des pénalités (feux rouges + poids)
+$autonomieApresPenalites = $autonomieBase - (floor($totalLights / 20) * $autonomyPer20Lights) - (floor($totalWeight / 50) * $wastePenaltyPer50kg);
+
+
 
 
 ?>
@@ -1419,22 +1493,6 @@ $totalMinutes = round(($totalTime - $totalHours) * 60);
         <!-- Temps estimé pour le trajet -->
         <div class="card mb-4">
             <div class="card-body">
-                <h2 class="card-title">Temps Estimé pour le Trajet</h2>
-                <p class="text-success">
-                    Temps estimé pour compléter l'itinéraire :
-                    <strong><?= $totalHours ?> heures et <?= $totalMinutes ?> minutes</strong>.
-                </p>
-                <p class="text-info">
-                    Autonomie ajustée :
-                    <strong><?= round($adjustedAutonomy, 2) ?> km</strong>.
-                </p>
-                <p class="text-primary">
-                    Distance totale à parcourir :
-                    <strong><?= round($totalDistance, 2) ?> km</strong>.
-                </p>
-                <p>Mode de la tournée : <strong><?php echo ucfirst($row['mode']); ?></strong></p>
-                <p>Autonomie des vélos : <strong><?php echo $row['autonomie']; ?> km</strong></p>
-                <p>Durée estimée : <strong><?php echo round($row['duree_estimee'], 2); ?> heures</strong></p>
 
                 <?php if ($extraTrips > 0): ?>
                     <p class="text-warning">
@@ -1443,7 +1501,44 @@ $totalMinutes = round(($totalTime - $totalHours) * 60);
                     </p>
                 <?php endif; ?>
             </div>
+            <div class="autonomie-section">
+                <h4>📢 Mode sélectionné : <strong><?= ucfirst($mode) ?></strong></h4>
+
+                <p>🚴 Autonomie de base (sans pénalités) :
+                    <strong><?= round($autonomieBase, 2) ?> km</strong>
+                </p>
+
+                <p>⚠️ Autonomie après pénalités :
+                    <strong><?= round($autonomieApresPenalites, 2) ?> km</strong>
+                </p>
+                <p>🚦 Pénalité due aux feux rouges : <strong><?= floor($totalLights / 20) * $autonomyPer20Lights ?> km</strong></p>
+                <p>🗑 Pénalité due au poids des déchets : <strong><?= floor($totalWeight / 50) * $wastePenaltyPer50kg ?> km</strong></p>
+
+                <div class="distance-section">
+                    <h4>📏 Distance totale à parcourir</h4>
+                    <p>🌍 La distance totale sur l’ensemble des trajets est de :
+                        <strong><?= round($totalDistanceParcourir, 2) ?> km</strong>
+                    </p>
+                </div>
+
+                <div class="time-section">
+                    <h4>⏳ Temps estimé pour la tournée</h4>
+                    <p>🕒 Le temps estimé pour compléter la tournée est de :
+                        <strong>
+                            <?= isset($totalHours) ? $totalHours : 'Erreur' ?> heures et
+                            <?= isset($totalMinutes) ? $totalMinutes : 'Erreur' ?> minutes
+                        </strong>
+                    </p>
+
+                </div>
+                <div id="cyclistStops">
+                    <h3>🚴‍♂️ Suivi des Cyclistes</h3>
+                </div>
+
+            </div>
+
         </div>
+
 
 
         <!-- Liste des incidents -->
@@ -1473,8 +1568,6 @@ $totalMinutes = round(($totalTime - $totalHours) * 60);
                 <?php endif; ?>
             </div>
         </div>
-
-
 
         <!-- Liste des agents -->
         <div class="card mb-4">
@@ -1889,6 +1982,84 @@ $totalMinutes = round(($totalTime - $totalHours) * 60);
             // Afficher tous les itinéraires
             showAgent('all');
         }
+
+
+
+        var itineraries = <?= json_encode($itineraries); ?>;
+        var stops = <?= json_encode($stops); ?>;
+
+        var cyclists = {}; // Suivi de la progression de chaque cycliste
+
+        // 🔄 Initialisation des cyclistes et de leurs itinéraires
+        for (var agent in itineraries) {
+            if (itineraries.hasOwnProperty(agent)) {
+                cyclists[agent] = {
+                    routeIndex: 0,
+                    stopIndex: 0
+                };
+            }
+        }
+
+        function updateCyclistStops() {
+            var displayHtml = "<h3>🚴‍♂️ Suivi des Cyclistes</h3>";
+
+            for (var agent in cyclists) {
+                if (cyclists.hasOwnProperty(agent)) {
+                    var routeIndex = cyclists[agent].routeIndex;
+                    var stopIndex = cyclists[agent].stopIndex;
+                    var routes = itineraries[agent];
+
+                    if (routes && routes[routeIndex]) {
+                        var currentRoute = routes[routeIndex];
+
+                        var previousStop = (stopIndex > 0) ? currentRoute[stopIndex - 1] : "Départ 🚀";
+                        var currentStop = (stopIndex < currentRoute.length) ? currentRoute[stopIndex] : "Tournée terminée ✅";
+                        var nextStop = (stopIndex < currentRoute.length - 1) ? currentRoute[stopIndex + 1] : "Arrêt final 🏁";
+
+                        displayHtml += `
+                        <p>
+                            🚴‍♂️ <strong>Agent ${parseInt(agent) + 1}</strong><br>
+                            🔵 Dernier arrêt : <strong>${previousStop}</strong><br>
+                            🟢 Arrêt actuel : <strong>${currentStop}</strong><br>
+                            🟡 Prochain arrêt : <strong>${nextStop}</strong>
+                        </p>
+                    `;
+                    }
+                }
+            }
+
+            document.getElementById("cyclistStops").innerHTML = displayHtml;
+        }
+
+        // ✅ Initialisation de l'affichage
+        updateCyclistStops();
+
+        // 🔄 Mettre à jour l'affichage lors du clic sur "Suivant"
+        document.getElementById("nextButton").addEventListener("click", function() {
+            for (var agent in cyclists) {
+                if (cyclists.hasOwnProperty(agent)) {
+                    var routeIndex = cyclists[agent].routeIndex;
+                    var stopIndex = cyclists[agent].stopIndex;
+                    var routes = itineraries[agent];
+
+                    if (routes && routes[routeIndex]) {
+                        var currentRoute = routes[routeIndex];
+
+                        if (stopIndex < currentRoute.length - 1) {
+                            // 🔄 Avancer au prochain arrêt
+                            cyclists[agent].stopIndex++;
+                        } else {
+                            // ✅ Passage à la prochaine route
+                            cyclists[agent].routeIndex++;
+                            cyclists[agent].stopIndex = 0;
+                        }
+                    }
+                }
+            }
+
+            // ✅ Mettre à jour l'affichage après chaque avancée
+            updateCyclistStops();
+        });
     </script>
 
 </body>

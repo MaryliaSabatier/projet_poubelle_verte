@@ -4,6 +4,7 @@ ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
+
 // Vérification de la connexion et du rôle (administrateur ou gestionnaire de réseau)
 if (!isset($_SESSION['user_id']) || ($_SESSION['role_id'] != 1 && $_SESSION['role_id'] != 4)) {
     header('Location: ../login.php');
@@ -13,7 +14,7 @@ if (!isset($_SESSION['user_id']) || ($_SESSION['role_id'] != 1 && $_SESSION['rol
 // Connexion à la base de données
 $servername = "localhost";
 $username_db = "root";
-$password_db = ""; // Assurez-vous que cette variable contient le bon mot de passe pour l'utilisateur root
+$password_db = "root"; // Assurez-vous que cette variable contient le bon mot de passe pour l'utilisateur root
 $dbname = "poubelle_verte";
 
 $conn = new mysqli($servername, $username_db, $password_db, $dbname);
@@ -23,14 +24,25 @@ if ($conn->connect_error) {
 
 // Traitement pour créer une nouvelle tournée unique avec des cyclistes disponibles et des vélos
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['create_tournee'])) {
-    // Créer la tournée unique
-    $stmt = $conn->prepare("INSERT INTO tournees (date, heure_debut, etat) VALUES (NOW(), NOW(), 'prévue')");
+    $mode = isset($_POST['mode']) ? $_POST['mode'] : 'ete'; // Valeur par défaut = ete
+
+    $stmt = $conn->prepare("INSERT INTO tournees (date, heure_debut, etat, mode) VALUES (NOW(), NOW(), 'planifiee', ?)");
+    $stmt->bind_param("s", $mode); 
+
     if ($stmt->execute()) {
-        $tourneeId = $conn->insert_id; // Récupérer l'ID de la tournée nouvellement créée
+        $tourneeId = $conn->insert_id; 
+        echo "<div class='alert alert-success'>Tournée créée en mode : $mode</div>";
     } else {
-        echo "<div class='alert alert-danger'>Erreur : La création de la tournée a échoué. Veuillez réessayer ou contacter l'administrateur.</div>";
-        exit();
+        echo "<div class='alert alert-danger'>Erreur lors de la création de la tournée.</div>";
     }
+
+    $result = $conn->query("SELECT mode FROM tournees WHERE id = $tourneeId");
+    $row = $result->fetch_assoc();
+    echo "Mode enregistré en BDD : " . $row['mode'];
+    
+
+
+
 
     // Récupérer les cyclistes disponibles
     $sqlCyclistesDisponibles = "SELECT id FROM utilisateurs WHERE role_id = 3 AND disponibilite = 'disponible'";
@@ -216,8 +228,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['delete_tournee'])) {
 
 
 // Récupération des tournées
-$sqlTournees = "SELECT t.id AS tournee_id, t.date, t.heure_debut, t.etat, COUNT(tc.cycliste_id) AS nombre_cyclistes, 
-                (SELECT COUNT(v.id) FROM tournees_cyclistes tc2 LEFT JOIN velos v ON tc2.velo_id = v.id WHERE tc2.tournee_id = t.id) AS nombre_velos
+$sqlTournees = "SELECT t.id AS tournee_id, t.date, t.heure_debut, t.etat, t.mode,
+                COUNT(tc.cycliste_id) AS nombre_cyclistes, 
+                (SELECT COUNT(v.id) FROM tournees_cyclistes tc2 
+                 LEFT JOIN velos v ON tc2.velo_id = v.id 
+                 WHERE tc2.tournee_id = t.id) AS nombre_velos
                 FROM tournees t
                 LEFT JOIN tournees_cyclistes tc ON t.id = tc.tournee_id
                 GROUP BY t.id
@@ -300,13 +315,26 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['mode'])) {
                     <input type="hidden" name="create_tournee" value="1">
                     <button type="submit" class="btn btn-success mb-4">Créer une tournée</button>
                 </form>
-                <!-- Formulaire pour choisir le mode -->
-                <form method="POST" class="mb-4">
-                    <div class="btn-group" role="group" aria-label="Modes">
-                        <button type="submit" name="mode" value="ete" class="btn btn-primary">Mode Été</button>
-                        <button type="submit" name="mode" value="hiver" class="btn btn-secondary">Mode Hiver</button>
+                <!-- Sélection du mode (Été / Hiver) -->
+                <form method="POST">
+                    <input type="hidden" id="selectedMode" name="mode" value="">
+                    <div class="btn-group" role="group">
+                        <button type="button" class="btn btn-primary mode-btn" data-mode="ete">Mode Été</button>
+                        <button type="button" class="btn btn-secondary mode-btn" data-mode="hiver">Mode Hiver</button>
                     </div>
+                    <button type="submit" name="create_tournee" class="btn btn-success mt-3">Créer une tournée</button>
                 </form>
+
+                <script>
+                    // Ajouter un événement pour sélectionner le mode
+                    document.querySelectorAll(".mode-btn").forEach(button => {
+                        button.addEventListener("click", function() {
+                            document.getElementById("selectedMode").value = this.getAttribute("data-mode");
+                            alert("Mode sélectionné : " + this.getAttribute("data-mode")); // Debug
+                        });
+                    });
+                </script>
+
 
                 <!-- Affichage du message basé sur le mode -->
                 <?php if (!empty($modeMessage)): ?>
@@ -335,7 +363,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['mode'])) {
                             <h4>Tournée ID: <?php echo $row['tournee_id']; ?> - Date: <?php echo $row['date']; ?> - Cyclistes: <?php echo $row['nombre_cyclistes']; ?> - Vélos: <?php echo $row['nombre_velos']; ?></h4>
                             <div class='d-flex justify-content-between mt-3'>
                                 <a href="trajet.php?tournee_id=<?php echo $row['tournee_id']; ?>" class="btn btn-info btn-sm">Visualisation Trajet</a>
-                                
+
 
                                 <!-- Si la tournée est en cours, afficher le bouton "Terminer la tournée" -->
                                 <?php if ($row['etat'] == 'en cours'): ?>
@@ -370,8 +398,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['mode'])) {
                                     <button type='submit' class='btn btn-danger btn-sm' name='delete_tournee' onclick="return confirm('Êtes-vous sûr de vouloir supprimer cette tournée ?')">Supprimer</button>
                                 </form>
 
-                                                                <!-- Formulaire pour mettre à jour l'état de la tournée -->
-                                                                <form method="POST" class="d-inline">
+                                <!-- Formulaire pour mettre à jour l'état de la tournée -->
+                                <form method="POST" class="d-inline">
                                     <input type="hidden" name="tournee_id" value="<?php echo $row['tournee_id']; ?>">
                                     <select name="etat" class="form-select form-select-sm d-inline" onchange="this.form.submit()">
                                         <option value="planifiee" <?php if ($row['etat'] == 'planifiee') echo 'selected'; ?>>Planifiée</option>

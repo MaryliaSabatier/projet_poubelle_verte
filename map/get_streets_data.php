@@ -9,7 +9,7 @@ require_once __DIR__ . '/../config.php';
 
 try {
     // Connexion à la base de données en utilisant PDO
-    $pdo = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME, DB_USER, DB_PASSWORD);
+    $pdo = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME, DB_USER, password: DB_PASSWORD);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
     // Préparer la requête pour récupérer les rues et arrêts associés

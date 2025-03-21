@@ -1,4 +1,9 @@
 <?php
+session_start();
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 $stops = array(
     // Rue Croix-Baragnon
     "La Défense" => array("lat" => 48.8913, "lng" => 2.2376),
@@ -940,7 +945,19 @@ $streets = array(
         "Saint-Lazare",
         "Gare du Nord"
     )
+
 );
+
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
+// Vérification de la connexion et du rôle
+if (!isset($_SESSION['user_id']) || $_SESSION['role_id'] != 3) {
+    die("Erreur : Aucun cycliste identifié.");
+}
+
+$cyclisteId = $_SESSION['user_id']; // L'ID du cycliste connecté
 
 // Connexion à la base de données
 $dsn = "mysql:host=localhost;dbname=poubelle_verte;charset=utf8";
@@ -956,6 +973,96 @@ try {
     die("Erreur de connexion : " . $e->getMessage());
 }
 
+// 🔹 Récupérer les informations du cycliste
+$sqlCycliste = "SELECT prenom, nom FROM utilisateurs WHERE id = :cyclisteId";
+$stmtCycliste = $pdo->prepare($sqlCycliste);
+$stmtCycliste->execute(['cyclisteId' => $cyclisteId]);
+$cycliste = $stmtCycliste->fetch();
+
+if (!$cycliste) {
+    die("Erreur : Impossible de récupérer les informations du cycliste.");
+}
+
+$prenomCycliste = $cycliste['prenom'];
+$nomCycliste = $cycliste['nom'];
+
+// 🔹 Récupérer le vélo attribué au cycliste
+$sqlVelo = "
+    SELECT v.numero AS numero_velo 
+    FROM tournees_cyclistes tc
+    JOIN velos v ON tc.velo_id = v.id
+    WHERE tc.cycliste_id = :cyclisteId
+";
+$stmtVelo = $pdo->prepare($sqlVelo);
+$stmtVelo->execute(['cyclisteId' => $cyclisteId]);
+$velo = $stmtVelo->fetch();
+
+// Vérifier si le cycliste a un vélo attribué
+$numeroVelo = $velo ? $velo['numero_velo'] : "Non attribué";
+
+// 🔹 Récupérer l'ID de la tournée du cycliste
+$sqlTournee = "
+    SELECT t.mode
+    FROM tournees t
+    JOIN tournees_cyclistes tc ON t.id = tc.tournee_id
+    WHERE tc.cycliste_id = :cyclisteId
+    ORDER BY t.date DESC
+    LIMIT 1
+";
+
+// 🔹 Récupérer l'ID de la tournée associée au cycliste
+$sqlTournee = "
+    SELECT tc.tournee_id, t.mode
+    FROM tournees_cyclistes tc
+    JOIN tournees t ON tc.tournee_id = t.id
+    WHERE tc.cycliste_id = :cyclisteId
+    ORDER BY t.date DESC
+    LIMIT 1
+";
+$stmtTournee = $pdo->prepare($sqlTournee);
+$stmtTournee->execute(['cyclisteId' => $cyclisteId]);
+$tournee = $stmtTournee->fetch();
+
+$tourneeId = $tournee ? $tournee['tournee_id'] : null;
+// Vérifier si une tournée est trouvée
+$modeTournee = $tournee ? $tournee['mode'] : "Non défini";
+
+$tourneeArrets = [];
+
+if ($tourneeId !== null) {
+    foreach ($streets as $rue => $arrets) {
+        foreach ($arrets as $arret) {
+            $tourneeArrets[] = [
+                'rue' => $rue,
+                'arret' => $arret,
+                'latitude' => isset($stops[$arret]) ? $stops[$arret]['lat'] : null,
+                'longitude' => isset($stops[$arret]) ? $stops[$arret]['lng'] : null
+            ];
+        }
+    }
+}
+
+
+
+// 🔹 Définition des autonomies en fonction du mode
+$autonomieBaseEte = 50; // Autonomie en mode été
+$autonomieBaseHiver = 45; // Autonomie en mode hiver (-10% de 50 km)
+$penaliteFeuxRouges = 2; // km perdus à cause des feux rouges
+$penaliteDechets = 8; // km perdus en raison du poids des déchets
+
+// 🔹 Calcul de l'autonomie réelle selon le mode de la tournée
+if ($modeTournee === 'hiver') {
+    $autonomieBase = $autonomieBaseHiver; // 45 km pour hiver
+} else {
+    $autonomieBase = $autonomieBaseEte; // 50 km pour été
+}
+
+// 🔹 Calcul de l'autonomie après pénalités
+$autonomieApresPenalites = $autonomieBase - ($penaliteFeuxRouges + $penaliteDechets);
+
+
+
+
 // Récupérer les vélos disponibles
 $sqlVelo = "SELECT id, numero FROM velos WHERE etat = 'en_cours_utilisation'";
 $velosDisponibles = $pdo->query($sqlVelo)->fetchAll();
@@ -969,7 +1076,7 @@ $numAgents = min(count($velosDisponibles), count($utilisateursDisponibles));
 
 
 // Autres paramètres
-$groupSize = 4; // Nombre d'arrêts avant de revenir à "Porte d'Ivry"
+$groupSize = ($modeTournee === 'hiver') ? 3 : 4; // 3 arrêts en hiver, 4 en été
 $startStop = "Porte d'Ivry"; // Point de départ
 $stopsToVisit = array_keys($stops);
 $visitedStops = [];
@@ -979,10 +1086,16 @@ if (($key = array_search($startStop, $stopsToVisit)) !== false) {
     unset($stopsToVisit[$key]);
 }
 
-// Générer tous les itinéraires possibles
+// Si le mode est "hiver", on réduit le nombre d'arrêts (75% des arrêts seulement)
+if ($modeTournee === 'hiver') {
+    $stopsToVisit = array_slice($stopsToVisit, 0, round(count($stopsToVisit) * 0.75));
+}
+
+
+// Générer tous les itinéraires possibles avec la limitation pour l'hiver
 $allRoutes = [];
 while (!empty($stopsToVisit)) {
-    $route = [$startStop];
+    $route = [$startStop]; // Toujours commencer par le point de départ
     $newStops = [];
 
     foreach ($stopsToVisit as $stop) {
@@ -994,31 +1107,28 @@ while (!empty($stopsToVisit)) {
         }
     }
 
-    // Retirer les arrêts visités de la liste des arrêts à visiter
+    // Supprimer les arrêts visités
     foreach ($newStops as $stop) {
         if (($key = array_search($stop, $stopsToVisit)) !== false) {
             unset($stopsToVisit[$key]);
         }
     }
 
-    // Ajouter les nouveaux arrêts à la route
+    // Ajouter les nouveaux arrêts au trajet
     $route = array_merge($route, $newStops);
 
-    // Retourner au point de départ
+    // Retour au point de départ
     $route[] = $startStop;
 
-    // Ajouter la route à la liste des itinéraires
+    // Ajouter l'itinéraire généré
     $allRoutes[] = $route;
 }
+
 
 // Distribuer les itinéraires entre les agents
 $itineraries = [];
 for ($i = 0; $i < $numAgents; $i++) {
     $itineraries[$i] = [];
-}
-
-if ($numAgents <= 0) {
-    die("Erreur : le nombre d'agents doit être supérieur à zéro.");
 }
 
 $routeIndex = 0;
@@ -1027,6 +1137,12 @@ foreach ($allRoutes as $route) {
     $itineraries[$agentIndex][] = $route;
     $routeIndex++;
 }
+
+if ($numAgents <= 0) {
+    die("Erreur : le nombre d'agents doit être supérieur à zéro.");
+}
+
+
 
 // Récupérer les incidents
 try {
@@ -1131,6 +1247,8 @@ function calculateDistance($lat1, $lon1, $lat2, $lon2)
     return $earthRadius * $c; // Distance en km
 }
 
+
+
 // Configuration
 $autonomy = 50; // km
 $autonomyPer20Lights = 1; // km
@@ -1188,10 +1306,6 @@ if ($totalDistance > $adjustedAutonomy) {
     $totalDistance += $extraTrips * $roundTripDistance; // Ajouter la distance supplémentaire pour les trajets de recharge
 }
 
-// Calculer le temps total
-$timePickup = $totalDistance / $pickupSpeed; // Temps en mode ramassage
-$timeRoute = ($extraTrips * $roundTripDistance) / $routeSpeed; // Temps pour les trajets de recharge
-$totalTime = $timePickup + $timeRoute;
 
 // Fonction pour calculer le temps pour un agent
 function calculateAgentTime($routes, $stops, $pickupSpeed, $adjustedAutonomy)
@@ -1263,21 +1377,109 @@ $cyclistTime = calculateAgentTime($cyclistRoutes, $stops, $pickupSpeed, $adjuste
 $cyclistHours = floor($cyclistTime);
 $cyclistMinutes = round(($cyclistTime - $cyclistHours) * 60);
 
+// Vérifier que le cycliste connecté a un itinéraire assigné
+if (!isset($itineraries[$cyclisteId])) {
+    die("Erreur : Aucun itinéraire assigné pour ce cycliste.");
+}
+
+// Récupérer les itinéraires spécifiques au cycliste connecté
+$cyclistRoutes = $itineraries[$cyclisteId];
+
+// Initialiser la distance totale du cycliste
+$distanceCycliste = 0;
+
+// Parcourir les itinéraires et calculer la distance
+foreach ($cyclistRoutes as $route) {
+    $routeDistance = 0;
+    $stopsCoordinates = [];
+
+    // Récupérer les coordonnées des arrêts
+    foreach ($route as $stop) {
+        if (isset($stops[$stop])) {
+            $stopsCoordinates[] = $stops[$stop];
+        }
+    }
+
+    // Calculer la distance pour cet itinéraire
+    for ($i = 0; $i < count($stopsCoordinates) - 1; $i++) {
+        $lat1 = $stopsCoordinates[$i]['lat'];
+        $lon1 = $stopsCoordinates[$i]['lng'];
+        $lat2 = $stopsCoordinates[$i + 1]['lat'];
+        $lon2 = $stopsCoordinates[$i + 1]['lng'];
+        $routeDistance += calculateDistance($lat1, $lon1, $lat2, $lon2);
+    }
+
+    // Ajouter la distance du trajet à la distance totale du cycliste
+    $distanceCycliste += $routeDistance;
+}
+
+if (!isset($itineraries[$cyclisteId]) || empty($itineraries[$cyclisteId])) {
+    die("Erreur : Aucun itinéraire assigné pour ce cycliste.");
+}
+
+$cyclistRoutes = $itineraries[$cyclisteId]; // Récupération des itinéraires du cycliste
+// Fonction pour calculer le temps du trajet en prenant en compte les vitesses différenciées
+function calculateCyclistTime($routes, $stops, $pickupSpeed, $routeSpeed)
+{
+    $totalDistance = 0;
+
+    foreach ($routes as $route) {
+        $routeDistance = 0;
+        $stopsCoordinates = [];
+
+        // Convertir les arrêts en coordonnées
+        foreach ($route as $stop) {
+            if (isset($stops[$stop])) {
+                $stopsCoordinates[] = $stops[$stop];
+            }
+        }
+
+        // Calculer la distance pour cet itinéraire
+        for ($i = 0; $i < count($stopsCoordinates) - 1; $i++) {
+            $lat1 = $stopsCoordinates[$i]['lat'];
+            $lon1 = $stopsCoordinates[$i]['lng'];
+            $lat2 = $stopsCoordinates[$i + 1]['lat'];
+            $lon2 = $stopsCoordinates[$i + 1]['lng'];
+            $routeDistance += calculateDistance($lat1, $lon1, $lat2, $lon2);
+        }
+
+        $totalDistance += $routeDistance;
+    }
+
+    // Supposons que 50% du trajet est en mode ramassage et 50% en mode route
+    $pickupDistance = $totalDistance * 0.5;
+    $routeDistance = $totalDistance * 0.5;
+
+    $pickupTime = $pickupDistance / $pickupSpeed; // Temps en heures pour le mode ramassage
+    $routeTime = $routeDistance / $routeSpeed; // Temps en heures pour le mode route
+
+    $totalTime = $pickupTime + $routeTime; // Temps total
+
+    return $totalTime;
+}
+
+// 🔹 Calcul du temps pour le cycliste connecté
+$cyclistTime = calculateCyclistTime($cyclistRoutes, $stops, 5, 20);
+
+// Convertir en heures et minutes
+$cyclistHours = floor($cyclistTime);
+$cyclistMinutes = round(($cyclistTime - $cyclistHours) * 60);
+
+
 
 ?>
+
 <!DOCTYPE html>
-<html>
+<html lang="fr">
 
 <head>
-    <meta charset="utf-8" />
-    <title>Itinéraires des vélos de la tournée</title>
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-    <!-- Inclure la feuille de style de Bootstrap et Leaflet -->
+    <title>Trajet du Cycliste</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <!-- Inclure la feuille de style de Bootstrap et Leaflet -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
-
     <style>
         #map {
             height: 600px;
@@ -1301,71 +1503,80 @@ $cyclistMinutes = round(($cyclistTime - $cyclistHours) * 60);
 </head>
 
 <body>
+
     <div class="container mt-5">
-        <a href="../logout.php" class="btn btn-danger logout-btn">Déconnexion</a>
-        <h1 class="text-center text-primary mb-4">Votre tournée</h1>
+        <h1 class="text-center">🚴‍♂️ Bienvenue cycliste : <span class="text-primary"><?= htmlspecialchars($prenomCycliste . " " . $nomCycliste) ?></span></h1>
 
-        <!-- Liste des agents -->
-        <div class="card mb-4">
+        <p class="text-center">
+            Voici votre trajet pour aujourd'hui.
+        </p>
+        <div class="text-center mt-4">
+            <a href="../logout.php" class="btn btn-danger">Déconnexion</a>
+        </div>
+        <div class="card mt-4">
             <div class="card-body">
-                <h2 class="card-title">Votre velo Attribuer</h2>
-                <ul class="list-group">
-                    <?php
-                    $i = 0;
-                    $agent = $utilisateursDisponibles[$i];
-                    $velo = $velosDisponibles[$i];
-                    echo "<li class='list-group-item'>Vous etes le cycliste " . ($i + 1) . ": " . htmlspecialchars($agent['prenom'] . " " . $agent['nom']) .
-                        " (Vélo #" . htmlspecialchars($velo['numero']) . ")</li>";
-                    ?>
-                </ul>
+                <h2 class="card-title">🚲 Vélo attribué</h2>
+                <p class="text-success"><strong>Numéro du vélo :</strong> <?= htmlspecialchars($numeroVelo) ?></p>
             </div>
         </div>
-
-        <!-- Temps estimé pour le trajet -->
-        <div class="card mb-4">
+        <div class="card mt-4">
             <div class="card-body">
-                <h2 class="card-title">Temps Estimé pour votre Tournée</h2>
-                <p class="text-success">
-                    Temps estimé pour compléter votre itinéraire :
-                    <strong><?= $cyclistHours ?> heures et <?= $cyclistMinutes ?> minutes</strong>.
-                </p>
-                <p class="text-info">
-                    Autonomie ajustée :
-                    <strong><?= round($adjustedAutonomy, 2) ?> km</strong>.
-                </p>
-
-                <div class="card-body">
-                    <h2 class="card-title">📍 Suivi du Cycliste</h2>
-                    <p id="previousStop" class="text-primary">🔵 Dernier arrêt : <strong>Aucun</strong></p>
-                    <p id="currentStop" class="text-info">🟢 Arrêt actuel : <strong>Chargement...</strong></p>
-                    <p id="nextStop" class="text-success">🟡 Prochain arrêt : <strong>Chargement...</strong></p>
-                </div>
+                <h2 class="card-title">🛠️ Tournée</h2>
+                <p class="text-info"><strong>Mode sélectionné :</strong> <?= htmlspecialchars(ucfirst($modeTournee)) ?></p>
             </div>
-        </div>
-        <div class="container mt-5">
-            <h1 class="text-center">Incidents Signalés</h1>
-
-            <!-- Liste des incidents -->
-            <div class="card mt-4">
-                <div class="card-body">
-                    <h2 class="card-title">Liste des incidents</h2>
-                    <?php if (!empty($incidents)): ?>
-                        <ul class="list-group">
-                            <?php foreach ($incidents as $incident): ?>
-                                <li class="list-group-item">
-                                    <strong>Arrêt :</strong> <?= htmlspecialchars($incident['arret_libelle']) ?><br>
-                                    <strong>Rue :</strong> <?= htmlspecialchars($incident['rue_libelle']) ?><br>
-                                    <strong>Description :</strong> <?= htmlspecialchars($incident['description']) ?><br>
-                                    <strong>Date :</strong> <?= htmlspecialchars($incident['date']) ?>
-                                    <strong>Heure :</strong> <?= htmlspecialchars($incident['heure']) ?>
-                                </li>
-                            <?php endforeach; ?>
-                        </ul>
-                    <?php else: ?>
-                        <p class="text-muted">Aucun incident signalé.</p>
-                    <?php endif; ?>
-                </div>
+            <div class="card-body">
+                <h2 class="card-title">🔋 Autonomie du Vélo</h2>
+                <p>🚴‍♂️ <strong>Autonomie de base :</strong> <?= $autonomieBase ?> km</p>
+                <p>⚠️ <strong>Pénalité due aux feux rouges :</strong> <?= $penaliteFeuxRouges ?> km</p>
+                <p>🗑️ <strong>Pénalité due au poids des déchets :</strong> <?= $penaliteDechets ?> km</p>
+                <p class="text-primary"><strong>Autonomie après pénalités :</strong> <?= max(0, $autonomieApresPenalites) ?> km</p>
             </div>
+                <h3 class="text-center">🚴‍♂️ Suivi du Cycliste</h3>
+                    <p>🔵 Dernier arrêt : <strong id="previousStop">Départ 🚀</strong></p>
+                    <p>🟢 Arrêt actuel : <strong id="currentStop">En attente...</strong></p>
+                    <p>🟡 Prochain arrêt : <strong id="nextStop">Chargement...</strong></p>
+            <div class="distance-section">
+                <h4>📏 Distance totale à parcourir </h4>
+                <p>🚴‍♂️ La distance totale de votre trajet est de :
+                    <strong><?= round($distanceCycliste, 2) ?> km</strong>
+                </p>
+            </div>
+
+            <div class="time-section">
+    <h4>⏳ Temps estimé pour le cycliste connecté</h4>
+    <p>🕒 Le temps estimé pour compléter sa tournée est de :
+        <strong>
+            <?= $cyclistHours ?> heures et <?= $cyclistMinutes ?> minutes
+        </strong>
+    </p>
+</div>
+
+            <div class="container mt-5">
+                    <h1 class="text-center">Incidents Signalés</h1>
+
+                    <!-- Liste des incidents -->
+                    <div class="card mt-4">
+                        <div class="card-body">
+                            <h2 class="card-title">Liste des incidents</h2>
+                            <?php if (!empty($incidents)): ?>
+                                <ul class="list-group">
+                                    <?php foreach ($incidents as $incident): ?>
+                                        <li class="list-group-item">
+                                            <strong>Arrêt :</strong> <?= htmlspecialchars($incident['arret_libelle']) ?><br>
+                                            <strong>Rue :</strong> <?= htmlspecialchars($incident['rue_libelle']) ?><br>
+                                            <strong>Description :</strong> <?= htmlspecialchars($incident['description']) ?><br>
+                                            <strong>Date :</strong> <?= htmlspecialchars($incident['date']) ?>
+                                            <strong>Heure :</strong> <?= htmlspecialchars($incident['heure']) ?>
+                                        </li>
+                                    <?php endforeach; ?>
+                                </ul>
+                            <?php else: ?>
+                                <p class="text-muted">Aucun incident signalé.</p>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+
+                </div>
             <div class="container mt-5">
                 <h1 class="text-center text-primary mb-4">Carte du trajet du cycliste</h1>
                 <div id="map"></div>
@@ -1373,114 +1584,136 @@ $cyclistMinutes = round(($cyclistTime - $cyclistHours) * 60);
                     <button id="nextStopBtn" class="btn btn-success">Suivant</button>
                 </div>
             </div>
-        </div>
-
-        <div class="container mt-5">
-            <?php
-            $agentIndex = 0; // Index de l'agent à afficher (0 pour l'agent 1)
-            if (isset($itineraries[$agentIndex])) {
-                $routes = $itineraries[$agentIndex];
-
-                echo "<div class='agent card mb-4' id='agent" . $agentIndex . "'>";
-                echo "<div class='card-body'>";
-                echo "<h2 class='card-title'>Itinéraire pour l'agent " . ($agentIndex + 1) . "</h2>";
-
-                foreach ($routes as $routeIndex => $route) {
-                    echo "<h3>Route " . ($routeIndex + 1) . "</h3>";
-                    echo "<ul class='list-group'>";
-                    foreach ($route as $stop) {
-                        echo "<li class='list-group-item'>" . htmlspecialchars($stop) . "</li>";
-                    }
-                    echo "</ul>";
-                }
-
-                echo "</div>";
-                echo "</div>";
-            } else {
-                echo "<p>Aucun itinéraire trouvé pour l'agent " . ($agentIndex + 1) . ".</p>";
-            }
-
-
-            ?>
-        </div>
-        <script>
-            // Initialiser la carte
-            var map = L.map('map').setView([48.8566, 2.3522], 12); // Centrer sur Paris
-
-            // Ajouter une couche de tuiles (carte de base)
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            }).addTo(map);
-
-            // Tableau des arrêts (exemple dynamique généré depuis PHP)
-            var stops = [
+            <div class="container mt-5">
                 <?php
-                $agentIndex = 0; // Afficher le trajet de l'agent 0
+                $agentIndex = 0; // Index de l'agent à afficher (0 pour l'agent 1)
                 if (isset($itineraries[$agentIndex])) {
                     $routes = $itineraries[$agentIndex];
-                    foreach ($routes as $route) {
+
+                    echo "<div class='agent card mb-4' id='agent" . $agentIndex . "'>";
+                    echo "<div class='card-body'>";
+                    echo "<h2 class='card-title'>Itinéraire pour l'agent " . ($agentIndex + 1) . "</h2>";
+
+                    foreach ($routes as $routeIndex => $route) {
+                        echo "<h3>Route " . ($routeIndex + 1) . "</h3>";
+                        echo "<ul class='list-group'>";
                         foreach ($route as $stop) {
-                            if (isset($stops[$stop])) {
-                                echo "{lat: " . $stops[$stop]['lat'] . ", lng: " . $stops[$stop]['lng'] . ", name: '" . addslashes($stop) . "'},";
+                            echo "<li class='list-group-item'>" . htmlspecialchars($stop) . "</li>";
+                        }
+                        echo "</ul>";
+                    }
+
+                    echo "</div>";
+                    echo "</div>";
+                } else {
+                    echo "<p>Aucun itinéraire trouvé pour l'agent " . ($agentIndex + 1) . ".</p>";
+                }
+
+
+                ?>
+
+            </div>
+            <script>
+                // 🗺️ Initialisation de la carte Leaflet
+                var map = L.map('map').setView([48.8566, 2.3522], 12);
+
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; OpenStreetMap contributors'
+                }).addTo(map);
+
+                // 🛠 Récupération des arrêts dynamiquement depuis PHP
+                var stops = [
+                    <?php
+                    $agentIndex = 0; // Itinéraire de l'agent 0
+                    if (isset($itineraries[$agentIndex])) {
+                        $routes = $itineraries[$agentIndex];
+                        foreach ($routes as $route) {
+                            foreach ($route as $stop) {
+                                if (isset($stops[$stop])) {
+                                    echo "{lat: " . $stops[$stop]['lat'] . ", lng: " . $stops[$stop]['lng'] . ", name: '" . addslashes($stop) . "'},";
+                                }
                             }
                         }
                     }
+                    ?>
+                ];
+
+                // 🛑 Vérifier si des arrêts existent
+                if (stops.length === 0) {
+                    alert("🚨 Aucun itinéraire trouvé !");
+                    throw new Error("Aucun arrêt disponible");
                 }
-                ?>
-            ];
 
-            // Ajouter les arrêts sur la carte et tracer un itinéraire
-            var latlngs = [];
-            stops.forEach(function(stop) {
-                L.marker([stop.lat, stop.lng]).addTo(map).bindPopup(stop.name);
-                latlngs.push([stop.lat, stop.lng]);
-            });
+                // 🗺️ Ajouter les arrêts sur la carte et tracer un itinéraire
+                var latlngs = [];
+                stops.forEach(function(stop) {
+                    L.marker([stop.lat, stop.lng]).addTo(map).bindPopup(stop.name);
+                    latlngs.push([stop.lat, stop.lng]);
+                });
 
-            // Tracer une ligne entre les arrêts
-            var polyline = L.polyline(latlngs, {
-                color: 'blue'
-            }).addTo(map);
+                // 📍 Tracer une ligne entre les arrêts
+                var polyline = L.polyline(latlngs, {
+                    color: 'blue'
+                }).addTo(map);
+                map.fitBounds(polyline.getBounds());
 
-            // Ajuster la vue pour afficher tous les arrêts
-            map.fitBounds(polyline.getBounds());
+                // 🚴 Initialiser le marqueur du cycliste
+                var cyclistMarker = L.marker([stops[0].lat, stops[0].lng], {
+                    icon: L.icon({
+                        iconUrl: 'https://cdn-icons-png.flaticon.com/512/194/194933.png',
+                        iconSize: [30, 30],
+                    })
+                }).addTo(map).bindPopup("🚴 Cycliste : " + stops[0].name);
 
-            // Initialiser le marqueur du cycliste
-            var cyclistMarker = L.marker([stops[0].lat, stops[0].lng], {
-                icon: L.icon({
-                    iconUrl: 'https://cdn-icons-png.flaticon.com/512/194/194933.png', // URL de l'icône pour représenter le cycliste
-                    iconSize: [30, 30],
-                })
-            }).addTo(map).bindPopup("Cycliste : " + stops[0].name);
+                // 🚀 Suivi de la position du cycliste
+                var currentStopIndex = 0;
 
-            // Index pour suivre la position actuelle du cycliste
-            var currentStopIndex = 0;
+                // 🔄 Mise à jour des arrêts sur l'affichage
+                function updateCyclistStops() {
+                    var previousStop = (currentStopIndex > 0) ? stops[currentStopIndex - 1].name : "Départ 🚀";
+                    var currentStop = (currentStopIndex < stops.length) ? stops[currentStopIndex].name : "Tournée terminée ✅";
+                    var nextStop = (currentStopIndex < stops.length - 1) ? stops[currentStopIndex + 1].name : "Arrêt final 🏁";
 
-            // Bouton pour avancer d'arrêt
-            document.getElementById('nextStopBtn').addEventListener('click', function() {
-                if (currentStopIndex < stops.length - 1) {
-                    currentStopIndex++; // Avancer d'un arrêt
+                    document.getElementById("previousStop").innerText = previousStop;
+                    document.getElementById("currentStop").innerText = currentStop;
+                    document.getElementById("nextStop").innerText = nextStop;
 
-                    // Mettre à jour la position du cycliste
-                    var nextStop = stops[currentStopIndex];
-                    cyclistMarker.setLatLng([nextStop.lat, nextStop.lng])
-                        .bindPopup("Cycliste : " + nextStop.name)
-                        .openPopup();
-
-                    // Centrer la carte sur la nouvelle position
-                    map.panTo([nextStop.lat, nextStop.lng]);
-
-                    // Mettre à jour l'affichage du bouton si nécessaire
-                    if (currentStopIndex === stops.length - 1) {
-                        document.getElementById('nextStopBtn').innerText = "Arrivée";
-                        document.getElementById('nextStopBtn').classList.add("btn-danger");
+                    if (currentStop === "Tournée terminée ✅") {
+                        document.getElementById("nextStopBtn").innerText = "Terminé !";
+                        document.getElementById("nextStopBtn").classList.add("btn-danger");
+                        document.getElementById("nextStopBtn").disabled = true;
                     }
-                } else {
-                    alert("Le cycliste a atteint la destination finale !");
                 }
-            });
 
-    
-        </script>
+                // ✅ Initialisation de l'affichage
+                updateCyclistStops();
+
+                // 🚴 Fonction pour déplacer le cycliste sur la carte
+                function moveCyclistOnMap() {
+                    if (currentStopIndex < stops.length) {
+                        var nextStop = stops[currentStopIndex];
+
+                        cyclistMarker.setLatLng([nextStop.lat, nextStop.lng])
+                            .bindPopup("🚴 Cycliste : " + nextStop.name)
+                            .openPopup();
+
+                        map.panTo([nextStop.lat, nextStop.lng]);
+                        updateCyclistStops();
+
+                        currentStopIndex++;
+                    } else {
+                        alert("🚴‍♂️ Le cycliste a terminé son itinéraire !");
+                    }
+                }
+
+                // ✅ Associer le bouton au déplacement du cycliste
+                document.getElementById('nextStopBtn').addEventListener('click', function() {
+                    moveCyclistOnMap();
+                });
+
+                // 🚴 Placer le cycliste au premier arrêt au chargement
+                moveCyclistOnMap();
+            </script>
 
 </body>
 

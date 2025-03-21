@@ -10,7 +10,7 @@ if (!isset($_SESSION['user_id']) || ($_SESSION['role_id'] != 1 && $_SESSION['rol
 // Connexion à la base de données (à adapter avec vos informations)
 $servername = "localhost";
 $username_db = "root";  // Votre utilisateur
-$password_db = "";      // Votre mot de passe
+$password_db = "root";      // Votre mot de passe
 $dbname = "poubelle_verte";
 
 $conn = new mysqli($servername, $username_db, $password_db, $dbname);

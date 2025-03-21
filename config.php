@@ -2,7 +2,7 @@
 // Informations de connexion à la base de données
 define('DB_HOST', 'localhost');
 define('DB_USER', 'root');
-define('DB_PASSWORD', '');
+define('DB_PASSWORD', 'root');
 define('DB_NAME', 'poubelle_verte');
 
 // Connexion à la base de données

@@ -20,7 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     // Connexion à la base de données (à adapter avec vos informations)
     $servername = "localhost";
     $username_db = "root"; // Ou votre nom d'utilisateur
-    $password_db = "";   // Ou votre mot de passe
+    $password_db = "root";   // Ou votre mot de passe
     $dbname = "poubelle_verte";
 
     $conn = new mysqli($servername, $username_db, $password_db, $dbname);
@@ -60,7 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $_SESSION['user_id'] = $row['id'];
                 $_SESSION['role_id'] = $row['role_id'];
                 $_SESSION['prenom'] = $row['prenom'];
-                header('Location: cycliste/cycliste.php'); // Redirection vers la page cycliste
+                header('Location: cycliste/trajet_cycliste.php'); // Redirection vers la page cycliste
                 exit();
             } else {
                 $error = "Vous n'avez pas les droits d'accès.";
